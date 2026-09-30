@@ -288,7 +288,7 @@ export default function AdminPage() {
             );
           })()}
           <h2 style={{ marginTop: 20 }}>Kode Script Iklan — jalan otomatis di semua page</h2>
-          <p className="admin-small">Tempel tag <b>&lt;script&gt;</b> utuh dari network (mis: cheflobesofficer, Adsterra, Monetag) atau URL .js mentah — otomatis dibungkus jadi tag script. Aktif di semua page user, tidak di /admin.</p>
+          <p className="admin-small">Tempel tag <b>&lt;script&gt;</b> utuh dari network. Script src jalan di head; banner tampil transparan (sticky bawah + interstitial, tanpa merusak layout). Tambah banner ke-2 untuk mengaktifkan interstitial.</p>
           {(() => {
             const adScripts = Array.isArray(settingsForm.adScripts)
               ? settingsForm.adScripts

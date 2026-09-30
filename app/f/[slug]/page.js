@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { readDB } from '@/lib/db';
-import { splitAdScripts } from '@/lib/ads';
 import VideoThumb from './thumb';
 
 export async function generateMetadata({ params }) {
@@ -24,9 +23,6 @@ export default async function FolderPage({ params, searchParams }) {
   if (!folder) return notFound();
 
   const settings = db.settings || {};
-  // HTML network dirender mentah (SSR) agar script document.write/container jalan.
-  // Item pertama di atas, sisanya di bawah — tanpa duplikat.
-  const { bodyHtml } = splitAdScripts(settings);
   const perPage = Number(settings.perPage) || 20;
   const page = Math.max(1, parseInt(searchParams?.p || '1', 10) || 1);
 
@@ -55,10 +51,6 @@ export default async function FolderPage({ params, searchParams }) {
           <h1 className="drive-title">{folder.title}</h1>
         </div>
       </header>
-
-      {bodyHtml[0] ? (
-        <div className="ad-slot" dangerouslySetInnerHTML={{ __html: bodyHtml[0] }} />
-      ) : null}
 
       <section>
         <div className="section-title">Folder</div>
@@ -100,10 +92,6 @@ export default async function FolderPage({ params, searchParams }) {
           {videos.length === 0 ? <div className="empty-state">Belum ada video di folder ini.</div> : null}
         </div>
       </section>
-
-      {bodyHtml.slice(1).map((html, i) => (
-        <div key={i} className="ad-slot" dangerouslySetInnerHTML={{ __html: html }} />
-      ))}
 
       {totalPages > 1 ? (
         <nav className="drive-pagination" aria-label="Pagination">
