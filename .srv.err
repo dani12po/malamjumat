@@ -1,0 +1,28 @@
+Error: Event handlers cannot be passed to Client Component props.
+  {src: ..., alt: ..., loading: "lazy", onError: function onError}
+                                                 ^^^^^^^^^^^^^^^^
+If you need interactivity, consider converting part of this to a Client Component.
+    at ek (D:\PEMROGAMAN\Belajar 2026\NextJS\iklan\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:140566)
+    at Object.toJSON (D:\PEMROGAMAN\Belajar 2026\NextJS\iklan\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:135755)
+    at stringify (<anonymous>)
+    at eR (D:\PEMROGAMAN\Belajar 2026\NextJS\iklan\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:142219)
+    at eE (D:\PEMROGAMAN\Belajar 2026\NextJS\iklan\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:142698)
+    at Timeout._onTimeout (D:\PEMROGAMAN\Belajar 2026\NextJS\iklan\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:135475)
+    at listOnTimeout (node:internal/timers:608:17)
+    at process.processTimers (node:internal/timers:543:7) {
+  digest: '2661862205'
+}
+Error: Event handlers cannot be passed to Client Component props.
+  {src: ..., alt: ..., loading: "lazy", onError: function onError}
+                                                 ^^^^^^^^^^^^^^^^
+If you need interactivity, consider converting part of this to a Client Component.
+    at ek (D:\PEMROGAMAN\Belajar 2026\NextJS\iklan\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:140566)
+    at Object.toJSON (D:\PEMROGAMAN\Belajar 2026\NextJS\iklan\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:135755)
+    at stringify (<anonymous>)
+    at eR (D:\PEMROGAMAN\Belajar 2026\NextJS\iklan\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:142219)
+    at eE (D:\PEMROGAMAN\Belajar 2026\NextJS\iklan\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:142698)
+    at Timeout._onTimeout (D:\PEMROGAMAN\Belajar 2026\NextJS\iklan\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:135475)
+    at listOnTimeout (node:internal/timers:608:17)
+    at process.processTimers (node:internal/timers:543:7) {
+  digest: '2661862205'
+}

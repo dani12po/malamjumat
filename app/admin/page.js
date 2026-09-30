@@ -1,0 +1,310 @@
+'use client';
+import { useEffect, useState } from 'react';
+
+export default function AdminPage() {
+  const [pass, setPass] = useState('');
+  const [authed, setAuthed] = useState(false);
+  const [db, setDb] = useState({ folders: [], videos: [], settings: {} });
+  const [tab, setTab] = useState('folders');
+  const [loading, setLoading] = useState(false);
+
+  // forms
+  const [folderForm, setFolderForm] = useState({ id: '', title: '', parentId: '' });
+  const [editingFolder, setEditingFolder] = useState(null);
+  const [videoForm, setVideoForm] = useState({ id: '', folderId: '', title: '', thumb: '', embed: '', file: '', label: 'vidoycdn' });
+  const [editingVideo, setEditingVideo] = useState(null);
+  const [videoSearch, setVideoSearch] = useState('');
+  const [folderFilter, setFolderFilter] = useState('all');
+  const [settingsForm, setSettingsForm] = useState({});
+  const [newBacklink, setNewBacklink] = useState('');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('drive-admin-pass');
+    if (saved) { setPass(saved); doLogin(saved, true); }
+    // eslint-disable-next-line
+  }, []);
+
+  async function load() {
+    const res = await fetch('/api/admin');
+    const j = await res.json();
+    setDb({ folders: j.folders || [], videos: j.videos || [], settings: j.settings || {} });
+    setSettingsForm(j.settings || {});
+  }
+
+  async function doLogin(p, silent) {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: p }) });
+      if (res.ok) {
+        setAuthed(true);
+        localStorage.setItem('drive-admin-pass', p);
+        await load();
+      } else if (!silent) alert('Password salah');
+    } finally { setLoading(false); }
+  }
+
+  async function call(action, payload = {}) {
+    const res = await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-pass': pass },
+      body: JSON.stringify({ action, ...payload })
+    });
+    const j = await res.json();
+    if (!res.ok) { alert(j.error || 'Gagal'); return null; }
+    await load();
+    return j;
+  }
+
+  if (!authed) {
+    return (
+      <main className="drive-shell admin-wrap">
+        <header className="drive-topbar">
+          <div className="brand-mark"><svg viewBox="0 0 24 24"><path d="M10 4l2 2h7a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h5z"></path></svg></div>
+          <div className="drive-title-wrap"><div className="drive-label">CMS</div><h1 className="drive-title">Login Admin</h1></div>
+        </header>
+        <div className="admin-card" style={{ marginTop: 20 }}>
+          <p className="admin-small">Default password: <b>admin123</b> — ganti di file <b>.env.local</b> → ADMIN_PASSWORD. Contoh vidmonstr + tribunvideo klon.</p>
+          <div className="admin-row two">
+            <input className="admin-input" type="password" placeholder="Password admin" value={pass} onChange={(e) => setPass(e.target.value)} />
+            <button className="admin-btn" onClick={() => doLogin(pass)} disabled={loading}>{loading ? '...' : 'Masuk'}</button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  const filteredVideos = (db.videos || []).filter((v) => {
+    const okFolder = folderFilter === 'all' || v.folderId === folderFilter;
+    const okSearch = !videoSearch || v.title.toLowerCase().includes(videoSearch.toLowerCase());
+    return okFolder && okSearch;
+  });
+
+  function startEditFolder(f) {
+    setEditingFolder(f.id);
+    setFolderForm({ id: f.id, title: f.title, parentId: f.parentId || '' });
+  }
+  function startEditVideo(v) {
+    setEditingVideo(v.id);
+    setVideoForm({ id: v.id, folderId: v.folderId || '', title: v.title, thumb: v.thumb, embed: v.embed || '', file: v.file || '', label: v.label || 'vidoycdn' });
+  }
+
+  function exportJSON() {
+    const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'drive-db.json';
+    a.click();
+  }
+  async function importJSON(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    try {
+      const j = JSON.parse(text);
+      await call('import', { db: j });
+      alert('Import OK');
+    } catch { alert('File JSON tidak valid'); }
+  }
+
+  return (
+    <main className="drive-shell admin-wrap">
+      <header className="drive-topbar">
+        <div className="brand-mark"><svg viewBox="0 0 24 24"><path d="M10 4l2 2h7a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h5z"></path></svg></div>
+        <div className="drive-title-wrap"><div className="drive-label">CMS • {db.settings?.siteName || 'Drive'}</div><h1 className="drive-title">Kelola Folder / Video / Iklan</h1></div>
+        <button className="admin-btn ghost" onClick={() => { localStorage.removeItem('drive-admin-pass'); location.reload(); }}>Keluar</button>
+      </header>
+
+      <div className="admin-tabs">
+        {['folders', 'videos', 'ads', 'settings', 'backup'].map((t) => (
+          <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
+            {t === 'folders' ? `Folder (${db.folders.length})` : t === 'videos' ? `Video (${db.videos.length})` : t === 'ads' ? 'Backlink' : t === 'settings' ? 'Pengaturan' : 'Backup'}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'folders' && (
+        <div className="admin-card">
+          <h2>{editingFolder ? 'Edit Folder' : 'Tambah Folder'}</h2>
+          <div className="admin-row three">
+            <input className="admin-input" placeholder="ID/slug (mis: 8eyirmnuplg, kosongkan=auto)" value={folderForm.id} disabled={!!editingFolder} onChange={(e) => setFolderForm({ ...folderForm, id: e.target.value })} />
+            <input className="admin-input" placeholder="Judul folder (mis: # AI Hijab 1)" value={folderForm.title} onChange={(e) => setFolderForm({ ...folderForm, title: e.target.value })} />
+            <select className="admin-select" value={folderForm.parentId} onChange={(e) => setFolderForm({ ...folderForm, parentId: e.target.value })}>
+              <option value="">— Root (tanpa induk) —</option>
+              {db.folders.map((f) => <option key={f.id} value={f.id}>{f.title} ({f.id})</option>)}
+            </select>
+          </div>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+            <button className="admin-btn" onClick={async () => {
+              if (!folderForm.title) return alert('Isi judul');
+              if (editingFolder) { await call('update-folder', { id: editingFolder, title: folderForm.title, parentId: folderForm.parentId }); setEditingFolder(null); }
+              else await call('create-folder', folderForm);
+              setFolderForm({ id: '', title: '', parentId: '' });
+            }}>{editingFolder ? 'Simpan' : 'Tambah'}</button>
+            {editingFolder && <button className="admin-btn ghost" onClick={() => { setEditingFolder(null); setFolderForm({ id: '', title: '', parentId: '' }); }}>Batal</button>}
+          </div>
+          <div style={{ marginTop: 16, overflowX: 'auto' }}>
+            <table className="admin-table">
+              <thead><tr><th>Judul</th><th>Link</th><th>Induk</th><th>Isi</th><th>Aksi</th></tr></thead>
+              <tbody>
+                {db.folders.map((f) => (
+                  <tr key={f.id}>
+                    <td>{f.title}<br /><span className="admin-small">{f.id}</span></td>
+                    <td><a href={`/f/${f.id}`} target="_blank" style={{ color: '#fe6081' }}>/f/{f.id}</a></td>
+                    <td>{f.parentId || '-'}</td>
+                    <td>{db.videos.filter((v) => v.folderId === f.id).length} video</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button className="admin-btn ghost" onClick={() => startEditFolder(f)}>Edit</button>{' '}
+                      <button className="admin-btn danger" onClick={() => confirm(`Hapus folder "${f.title}"?`) && call('delete-folder', { id: f.id })}>Hapus</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {tab === 'videos' && (
+        <div className="admin-card">
+          <h2>{editingVideo ? 'Edit Video' : 'Tambah Video'}</h2>
+          <div className="admin-row two">
+            <input className="admin-input" placeholder="ID/slug (kosongkan=auto)" value={videoForm.id} disabled={!!editingVideo} onChange={(e) => setVideoForm({ ...videoForm, id: e.target.value })} />
+            <select className="admin-select" value={videoForm.folderId} onChange={(e) => setVideoForm({ ...videoForm, folderId: e.target.value })}>
+              <option value="">— Pilih folder —</option>
+              {db.folders.map((f) => <option key={f.id} value={f.id}>{f.title}</option>)}
+            </select>
+          </div>
+          <div className="admin-row" style={{ marginTop: 10 }}>
+            <input className="admin-input" placeholder="Judul file (mis: AI Motion - Cewe Hijab 01 - vidxlr.top)" value={videoForm.title} onChange={(e) => setVideoForm({ ...videoForm, title: e.target.value })} />
+          </div>
+          <div className="admin-row two" style={{ marginTop: 10 }}>
+            <input className="admin-input" placeholder="Thumbnail URL (https://... 9:16 lebih bagus)" value={videoForm.thumb} onChange={(e) => setVideoForm({ ...videoForm, thumb: e.target.value })} />
+            <input className="admin-input" placeholder="Label kecil (vidoycdn / vidoyhls)" value={videoForm.label} onChange={(e) => setVideoForm({ ...videoForm, label: e.target.value })} />
+          </div>
+          <div className="admin-row two" style={{ marginTop: 10 }}>
+            <input className="admin-input" placeholder="Embed iframe URL (youtube/doodstream/dll, kosongkan jika pakai File)" value={videoForm.embed} onChange={(e) => setVideoForm({ ...videoForm, embed: e.target.value })} />
+            <input className="admin-input" placeholder="File MP4 langsung (https://...mp4)" value={videoForm.file} onChange={(e) => setVideoForm({ ...videoForm, file: e.target.value })} />
+          </div>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+            <button className="admin-btn" onClick={async () => {
+              if (!videoForm.title) return alert('Isi judul');
+              if (editingVideo) { await call('update-video', { ...videoForm, id: editingVideo }); setEditingVideo(null); }
+              else await call('create-video', videoForm);
+              setVideoForm({ id: '', folderId: '', title: '', thumb: '', embed: '', file: '', label: 'vidoycdn' });
+            }}>{editingVideo ? 'Simpan' : 'Tambah'}</button>
+            {editingVideo && <button className="admin-btn ghost" onClick={() => { setEditingVideo(null); setVideoForm({ id: '', folderId: '', title: '', thumb: '', embed: '', file: '', label: 'vidoycdn' }); }}>Batal</button>}
+          </div>
+          <div className="admin-row two" style={{ marginTop: 16 }}>
+            <input className="admin-input" placeholder="Cari judul..." value={videoSearch} onChange={(e) => setVideoSearch(e.target.value)} />
+            <select className="admin-select" value={folderFilter} onChange={(e) => setFolderFilter(e.target.value)}>
+              <option value="all">Semua folder</option>
+              {db.folders.map((f) => <option key={f.id} value={f.id}>{f.title}</option>)}
+            </select>
+          </div>
+          <div style={{ marginTop: 12, overflowX: 'auto' }}>
+            <table className="admin-table">
+              <thead><tr><th>Judul</th><th>Folder</th><th>Link</th><th>Aksi</th></tr></thead>
+              <tbody>
+                {filteredVideos.slice(0, 200).map((v) => (
+                  <tr key={v.id}>
+                    <td style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.title}<br /><span className="admin-small">{v.id}</span></td>
+                    <td>{db.folders.find((f) => f.id === v.folderId)?.title || '-'}</td>
+                    <td><a href={`/d/${v.id}`} target="_blank" style={{ color: '#fe6081' }}>/d/{v.id}</a></td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button className="admin-btn ghost" onClick={() => startEditVideo(v)}>Edit</button>{' '}
+                      <button className="admin-btn danger" onClick={() => confirm('Hapus video ini?') && call('delete-video', { id: v.id })}>Hapus</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="admin-small">Menampilkan {Math.min(200, filteredVideos.length)} dari {filteredVideos.length} video (gunakan cari/filter).</p>
+          </div>
+        </div>
+      )}
+
+      {tab === 'ads' && (
+        <div className="admin-card">
+          <h2>Backlink Iklan — sumber uangnya di sini</h2>
+          <p className="admin-small">Tambah backlink / direct link dari network (boleh banyak). Iklan tampil otomatis dari backlink ini — sel native di tengah grid folder + slot atas-bawah di page video. Link HANYA terbuka saat iklannya diklik.</p>
+          {(() => {
+            const backlinks = Array.isArray(settingsForm.backlinks)
+              ? settingsForm.backlinks
+              : (settingsForm.directLink ? [settingsForm.directLink] : []);
+            function addBacklink() {
+              const url = (newBacklink || '').trim();
+              if (!url) return alert('Isi URL backlink dulu');
+              if (!/^https?:\/\//i.test(url)) return alert('URL harus diawali http:// atau https://');
+              const next = [...backlinks, url];
+              setSettingsForm({ ...settingsForm, backlinks: next, directLink: next[0] || '' });
+              setNewBacklink('');
+            }
+            function removeBacklink(idx) {
+              const next = backlinks.filter((_, i) => i !== idx);
+              setSettingsForm({ ...settingsForm, backlinks: next, directLink: next[0] || '' });
+            }
+            return (
+              <>
+                <div className="admin-row two" style={{ marginTop: 10 }}>
+                  <input className="admin-input" value={newBacklink} onChange={(e) => setNewBacklink(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addBacklink(); }} placeholder="https://www.profitableratecpmnetwork.com/..." />
+                  <button className="admin-btn" onClick={addBacklink}>+ Tambah Backlink</button>
+                </div>
+                <div style={{ marginTop: 12, overflowX: 'auto' }}>
+                  <table className="admin-table">
+                    <thead><tr><th>#</th><th>URL Backlink ({backlinks.length})</th><th>Aksi</th></tr></thead>
+                    <tbody>
+                      {backlinks.map((u, i) => (
+                        <tr key={i}>
+                          <td>{i + 1}</td>
+                          <td style={{ maxWidth: 480, overflow: 'hidden', textOverflow: 'ellipsis', wordBreak: 'break-all' }}>{u}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            <button className="admin-btn danger" onClick={() => confirm('Hapus backlink ini?') && removeBacklink(i)}>Hapus</button>
+                          </td>
+                        </tr>
+                      ))}
+                      {backlinks.length === 0 ? <tr><td colSpan="3" className="admin-small">Belum ada backlink. Tambahkan minimal 1.</td></tr> : null}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            );
+          })()}
+          <div className="admin-row" style={{ marginTop: 16 }}>
+            <label className="admin-small">Popunder / Social Bar Script (tampil di semua halaman — opsional)</label>
+            <textarea className="admin-textarea" value={settingsForm.popunderScript || ''} onChange={(e) => setSettingsForm({ ...settingsForm, popunderScript: e.target.value })} />
+            <label className="admin-small" style={{ marginTop: 10 }}>Custom Head Script (gtag / ad-manager / histats — opsional)</label>
+            <textarea className="admin-textarea" value={settingsForm.customHeadScript || ''} onChange={(e) => setSettingsForm({ ...settingsForm, customHeadScript: e.target.value })} />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <button className="admin-btn" onClick={() => call('settings', { settings: settingsForm })}>Simpan Iklan</button>
+          </div>
+        </div>
+      )}
+
+      {tab === 'settings' && (
+        <div className="admin-card">
+          <h2>Pengaturan Umum</h2>
+          <div className="admin-row two">
+            <div><label className="admin-small">Nama situs</label><input className="admin-input" value={settingsForm.siteName || ''} onChange={(e) => setSettingsForm({ ...settingsForm, siteName: e.target.value })} /></div>
+            <div><label className="admin-small">Video per halaman (default 20)</label><input className="admin-input" type="number" value={settingsForm.perPage || 20} onChange={(e) => setSettingsForm({ ...settingsForm, perPage: Number(e.target.value) })} /></div>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <button className="admin-btn" onClick={() => call('settings', { settings: settingsForm })}>Simpan</button>
+          </div>
+          <p className="admin-small" style={{ marginTop: 12 }}>Warna primary mengikuti vidmonstr: #fe6081. Struktur link: /f/[id-folder] dan /d/[id-video] — sama persis dengan vidmonstr.com & tribunvideo.com.</p>
+        </div>
+      )}
+
+      {tab === 'backup' && (
+        <div className="admin-card">
+          <h2>Backup / Restore</h2>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="admin-btn" onClick={exportJSON}>Download JSON</button>
+            <label className="admin-btn ghost" style={{ cursor: 'pointer' }}>Import JSON<input type="file" accept=".json" style={{ display: 'none' }} onChange={importJSON} /></label>
+          </div>
+          <p className="admin-small" style={{ marginTop: 10 }}>Data tersimpan di <b>data/db.json</b>. Backup rutin sebelum share / deploy.</p>
+        </div>
+      )}
+    </main>
+  );
+}
