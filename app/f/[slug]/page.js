@@ -1,8 +1,12 @@
 import Link from 'next/link';
+import { Fragment } from 'react';
 import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
 import { readDB } from '@/lib/db';
-import { unitAt, splitAdScripts } from '@/lib/ads';
-import AdBox from '@/app/AdBox';
+import { splitAdScripts } from '@/lib/ads';
+import { allocateUnits, detectDevice } from '@/lib/ad-placement';
+import { TopAd, NativeAd, BottomAd, MobileAd } from '@/app/ad-slots';
+import SmartCTA from '@/app/SmartCTA';
 import VideoThumb from './thumb';
 
 export async function generateMetadata({ params }) {
@@ -26,6 +30,7 @@ export default async function FolderPage({ params, searchParams }) {
 
   const settings = db.settings || {};
   const { bodyHtml } = splitAdScripts(settings);
+  const U = allocateUnits(bodyHtml, 'folder', detectDevice(headers().get('user-agent')));
   const perPage = Number(settings.perPage) || 20;
   const page = Math.max(1, parseInt(searchParams?.p || '1', 10) || 1);
 
@@ -55,7 +60,7 @@ export default async function FolderPage({ params, searchParams }) {
         </div>
       </header>
 
-      <AdBox html={unitAt(bodyHtml, 0)} minH={90} />
+      <TopAd unit={U.top} />
 
       <section>
         <div className="section-title">Folder</div>
@@ -78,27 +83,37 @@ export default async function FolderPage({ params, searchParams }) {
       <section>
         <div className="section-title">Video</div>
         <div className="file-grid">
-          {videos.map((v) => (
-            <article key={v.id} className="drive-file-card">
-              <Link href={`/d/${v.id}`} className="thumb-link" aria-label={v.title}>
-                <VideoThumb src={v.thumb} alt={v.label || 'vidoycdn'} />
-                <span className="thumb-label">{v.label || ''}</span>
-                <span className="play-badge" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z"></path>
-                  </svg>
-                </span>
-              </Link>
-              <Link href={`/d/${v.id}`} className="file-name" title={v.title}>
-                {v.title}
-              </Link>
-            </article>
-          ))}
+          {videos.map((v, i) => {
+            const inGrid = i === 5 ? U.native1 : i === 11 ? U.native2 : '';
+            return (
+              <Fragment key={v.id}>
+                <article className="drive-file-card">
+                  <Link href={`/d/${v.id}`} className="thumb-link" aria-label={v.title}>
+                    <VideoThumb src={v.thumb} alt={v.label || 'vidoycdn'} />
+                    <span className="thumb-label">{v.label || ''}</span>
+                    <span className="play-badge" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z"></path>
+                      </svg>
+                    </span>
+                  </Link>
+                  <Link href={`/d/${v.id}`} className="file-name" title={v.title}>
+                    {v.title}
+                  </Link>
+                </article>
+                {inGrid ? (
+                  <div className="autoad-cell">
+                    <NativeAd unit={inGrid} />
+                  </div>
+                ) : null}
+              </Fragment>
+            );
+          })}
           {videos.length === 0 ? <div className="empty-state">Belum ada video di folder ini.</div> : null}
         </div>
       </section>
 
-      <AdBox html={unitAt(bodyHtml, 1)} minH={90} />
+      <BottomAd unit={U.bottom} />
 
       {totalPages > 1 ? (
         <nav className="drive-pagination" aria-label="Pagination">
@@ -118,12 +133,9 @@ export default async function FolderPage({ params, searchParams }) {
         </nav>
       ) : null}
 
-      {settings.popunderScript ? (
-        <div dangerouslySetInnerHTML={{ __html: settings.popunderScript }} />
-      ) : null}
-      {settings.customHeadScript ? (
-        <div dangerouslySetInnerHTML={{ __html: settings.customHeadScript }} />
-      ) : null}
+      <BottomAd unit={U.footer} />
+      <SmartCTA settings={settings}>Jelajahi Sponsor</SmartCTA>
+      <MobileAd unit={U.mobile} />
     </main>
   );
 }

@@ -145,19 +145,71 @@ a { color: inherit; text-decoration: none; }
 .adbox-label { display: block; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted-2); margin-bottom: 6px; }
 .adbox-body { display: flex; justify-content: center; align-items: flex-start; overflow: hidden; }
 .adbox-body iframe, .adbox-body img { max-width: 100%; }
+/* slot dilewati opportunity engine: runtuh total (tanpa ruang mati) */
+.adbox[data-adstate="skipped"] { display: none; }
+/* varian ukuran slot: responsif (max-width), tidak memaksa di mobile */
+.adbox-wide { width: 100%; max-width: 728px; margin-left: auto; margin-right: auto; }
+.adbox-med { width: 100%; max-width: 468px; margin-left: auto; margin-right: auto; }
+.adbox-side .adbox-body { justify-content: center; }
+/* sel native di tengah grid folder */
+.autoad-cell { grid-column: 1 / -1; min-width: 0; }
+.autoad-cell .adbox { margin: 4px 0; }
+/* CTA Smartlink: jelas sebagai iklan, bukan player */
+.smart-cta-wrap { display: flex; justify-content: center; margin: 12px 4px; }
+.smart-cta {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-radius: 999px;
+  border: 1px dashed var(--primary-border); background: var(--primary-soft);
+  color: var(--text); font-size: 14px; font-weight: 700;
+}
+.smart-cta:hover { background: rgba(254, 96, 129, 0.22); }
+.smart-cta-tag {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+  background: var(--primary); color: #fff; border-radius: 6px; padding: 3px 7px;
+}
 /* halaman video: judul, layout 2 kolom desktop, meta */
 .video-title { margin: 6px 4px 4px; font-size: 18px; line-height: 1.4; font-weight: 700; word-break: break-word; }
 .video-layout { display: block; }
 .video-main { min-width: 0; }
 .video-side { display: none; }
+.video-side.video-side-left { display: none; }
 .video-meta { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 4px; }
 .meta-chip { font-size: 12px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; background: var(--surface); }
 .meta-link { color: var(--primary); }
+/* video player (pindah dari inline <style>: inline memicu hydration mismatch) */
+.vv-player, .video-link .thumbnail { height: 100%; width: 100%; }
+#videq_iframe, .video-link { width: 100%; height: 100dvh; padding-bottom: env(safe-area-inset-bottom); box-sizing: border-box; }
+.video-page-dark { margin: 0 auto; padding: 0; background: #000; min-height: 100dvh; }
+.video-link { display: block; overflow: visible; position: relative; background-color: #000; cursor: pointer; }
+.video-link .thumbnail { object-fit: contain; object-position: center; }
+.video-link::after { content: ""; position: absolute; top: 50%; left: 50%; border-radius: 50%; transform: translate(-50%, -50%); background: #fe6081; width: 48px; height: 48px; background-image: url(data:image/svg+xml;base64,PHN2ZyAgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiAgd2lkdGg9IjI0IiAgaGVpZ2h0PSIyNCIgIHZpZXdCb3g9IjAgMCAyNCAyNCIgIGZpbGw9IiNmZmYiICBjbGFzcz0iaWNvbiBpY29uLXRhYmxlciBpY29ucy10YWJsZXItZmlsbGVkIGljb24tdGFibGVyLXBsYXllci1wbGF5Ij48cGF0aCBzdHJva2U9Im5vbmUiIGQ9Ik0wIDBoMjR2MjRIMHoiIGZpbGw9Im5vbmUiLz48cGF0aCBkPSJNNiA0djE2YTEgMSAwIDAgMCAxLjUyNCAuODUybDEzIC04YTEgMSAwIDAgMCAwIC0xLjcwNGwtMTMgLThhMSAxIDAgMCAwIC0xLjUyNCAuODUyeiIgLz48L3N2Zz4=); background-position: center; background-repeat: no-repeat; background-size: 24px; filter: drop-shadow(0 0 10px rgba(0,0,0,.4)); }
+#videq_iframe { border: none; margin-bottom: -3%; background: #000; }
 @media (min-width: 1024px) {
   .video-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
   .video-side { display: block; position: sticky; top: 16px; }
   .video-title { font-size: 20px; }
 }
+@media (min-width: 1440px) {
+  .video-layout.has-left { grid-template-columns: 300px minmax(0, 1fr) 300px; }
+  .video-layout.has-left .video-side-left { display: block; position: sticky; top: 16px; }
+}
+/* hanya mobile (<1024px) */
+.mobile-only { display: block; }
+@media (min-width: 1024px) {
+  .mobile-only { display: none; }
+}
+/* panel debug monetisasi: DEV ONLY */
+.ad-debug {
+  position: fixed; left: 8px; bottom: 8px; z-index: 99999;
+  max-width: min(420px, calc(100vw - 16px));
+  font-family: monospace; font-size: 11px; line-height: 1.5; color: #0f0;
+  background: rgba(0, 0, 0, 0.85); border: 1px solid #0f0; border-radius: 8px;
+  padding: 8px 10px; pointer-events: none; white-space: pre-wrap; word-break: break-word;
+}
+.ad-debug-title { font-weight: 800; margin-bottom: 4px; }
+.ad-debug-heat { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.ad-debug-chip { border: 1px solid; border-radius: 6px; padding: 1px 6px; }
+.ad-debug-timeline { opacity: 0.85; }
 @media (min-width: 760px) {
   body { padding: 24px; }
   .file-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
