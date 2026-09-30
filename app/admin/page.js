@@ -18,6 +18,7 @@ export default function AdminPage() {
   const [settingsForm, setSettingsForm] = useState({});
   const [newBacklink, setNewBacklink] = useState('');
   const [newAdScript, setNewAdScript] = useState('');
+  const [bans, setBans] = useState(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('drive-admin-pass');
@@ -25,8 +26,10 @@ export default function AdminPage() {
     // eslint-disable-next-line
   }, []);
 
-  async function load() {
-    const res = await fetch('/api/admin');
+  async function load(adminPass) {
+    const key = adminPass || pass;
+    const res = await fetch('/api/admin', { headers: { 'x-admin-pass': key } });
+    if (res.status === 401) throw new Error('unauthorized (password salah / belum login)');
     if (!res.ok) throw new Error(`load gagal (${res.status})`);
     const j = await res.json();
     setDb({ folders: j.folders || [], videos: j.videos || [], settings: j.settings || {}, storage: j.storage || 'file' });
@@ -41,11 +44,11 @@ export default function AdminPage() {
         setAuthed(true);
         localStorage.setItem('drive-admin-pass', p);
         try {
-          await load();
+          await load(p);
         } catch {
           if (!silent) alert('Login OK, tapi data gagal dimuat. Refresh halaman.');
         }
-      } else if (!silent) alert('Password salah');
+      } else if (!silent) alert('Kunci salah');
     } finally { setLoading(false); }
   }
 
@@ -74,17 +77,15 @@ export default function AdminPage() {
 
   if (!authed) {
     return (
-      <main className="drive-shell admin-wrap">
-        <header className="drive-topbar">
-          <div className="brand-mark"><svg viewBox="0 0 24 24"><path d="M10 4l2 2h7a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h5z"></path></svg></div>
-          <div className="drive-title-wrap"><div className="drive-label">CMS</div><h1 className="drive-title">Login Admin</h1></div>
-        </header>
-        <div className="admin-card" style={{ marginTop: 20 }}>
-          <p className="admin-small">Default password: <b>admin123</b> — ganti di file <b>.env.local</b> → ADMIN_PASSWORD. Contoh vidmonstr + tribunvideo klon.</p>
-          <div className="admin-row two">
-            <input className="admin-input" type="password" placeholder="Password admin" value={pass} onChange={(e) => setPass(e.target.value)} />
-            <button className="admin-btn" onClick={() => doLogin(pass)} disabled={loading}>{loading ? '...' : 'Masuk'}</button>
+      <main className="login-screen">
+        <div className="login-card">
+          <div className="login-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 1 1 6 0v3H9zm3 4a2 2 0 0 1 1 3.73V19a1 1 0 0 1-2 0v-1.27A2 2 0 0 1 12 14z"></path></svg>
           </div>
+          <h1 className="login-title">Admin</h1>
+          <p className="login-sub">Masukkan kunci admin untuk masuk.</p>
+          <input className="admin-input login-input" type="password" placeholder="Kunci admin" value={pass} onChange={(e) => setPass(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && pass) doLogin(pass); }} autoFocus />
+          <button className="admin-btn login-btn" onClick={() => doLogin(pass)} disabled={loading || !pass}>{loading ? 'Memeriksa…' : 'Masuk'}</button>
         </div>
       </main>
     );
@@ -364,6 +365,29 @@ export default function AdminPage() {
             <label className="admin-btn ghost" style={{ cursor: 'pointer' }}>Import JSON<input type="file" accept=".json" style={{ display: 'none' }} onChange={importJSON} /></label>
           </div>
           <p className="admin-small" style={{ marginTop: 10 }}>Data tersimpan di <b>data/db.json</b>. Backup rutin sebelum share / deploy.</p>
+          <h2 style={{ marginTop: 20 }}>IP Terblokir Otomatis</h2>
+          <p className="admin-small">IP penyerang (5x login salah / 10 mnt) diblokir 1 jam otomatis, tersimpan di database (berlaku semua instance).</p>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button className="admin-btn ghost" onClick={async () => { const r = await call('list-bans'); if (r) setBans(r.bans || []); }}>Muat Daftar Blokir</button>
+          </div>
+          {bans && (
+            <div style={{ marginTop: 12, overflowX: 'auto' }}>
+              <table className="admin-table">
+                <thead><tr><th>IP</th><th>Alasan</th><th>Sampai</th><th>Aksi</th></tr></thead>
+                <tbody>
+                  {bans.map((b) => (
+                    <tr key={b.ip}>
+                      <td style={{ fontFamily: 'monospace' }}>{b.ip}</td>
+                      <td>{b.reason} (gagal x{b.fails})</td>
+                      <td>{b.until ? new Date(b.until).toLocaleString('id-ID') : '-'}</td>
+                      <td><button className="admin-btn danger" onClick={async () => { if (!confirm(`Buka blokir ${b.ip}?`)) return; await call('unban', { ip: b.ip }); const r = await call('list-bans'); if (r) setBans(r.bans || []); }}>Unban</button></td>
+                    </tr>
+                  ))}
+                  {bans.length === 0 ? <tr><td colSpan="4" className="admin-small">Tidak ada IP terblokir.</td></tr> : null}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </main>

@@ -1,13 +1,26 @@
 import { NextResponse } from 'next/server';
 import { readDB, writeDB, uid, isCloudDb } from '@/lib/db';
+import { rateLimit, clientIp } from '@/lib/ratelimit';
+import { isBanned, noteFail, listBans, unbanIp } from '@/lib/ipban';
 
-function checkAuth(req) {
-  const pass = process.env.ADMIN_PASSWORD || 'admin123';
+import { verifyKey } from '@/lib/password';
+
+async function checkAuth(req) {
   const auth = req.headers.get('x-admin-pass') || '';
-  return auth === pass;
+  if (!auth) return false;
+  try {
+    const settings = ((await readDB()).settings) || {};
+    // HANYA hash verifier. Tanpa verifier = tolak semua (generate via scripts/setup-admin.cjs).
+    if (!settings.adminKeyVerifier) return false;
+    return verifyKey(auth, settings.adminKeyVerifier);
+  } catch {
+    return false;
+  }
 }
 
-export async function GET() {
+export async function GET(req) {
+  if (!(await checkAuth(req))) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (await isBanned(clientIp(req))) return NextResponse.json({ error: 'IP diblokir sementara' }, { status: 403 });
   try {
     const db = await readDB();
     return NextResponse.json({
@@ -22,7 +35,12 @@ export async function GET() {
 }
 
 export async function POST(req) {
-  if (!checkAuth(req)) return NextResponse.json({ error: 'unauthorized: password admin salah' }, { status: 401 });
+  const rl = rateLimit(`admin:${clientIp(req)}`, { limit: 120, windowMs: 60_000 });
+  if (!rl.ok) return NextResponse.json({ error: 'terlalu banyak request, pelankan' }, { status: 429 });
+  if (!(await checkAuth(req))) {
+    await noteFail(clientIp(req), 'tebak-kunci');
+    return NextResponse.json({ error: 'unauthorized: password admin salah' }, { status: 401 });
+  }
   let body;
   try {
     body = await req.json();
@@ -31,6 +49,14 @@ export async function POST(req) {
   }
   const db = await readDB();
   try {
+  if (body.action === 'list-bans') {
+    return NextResponse.json({ ok: true, bans: await listBans() });
+  }
+  if (body.action === 'unban') {
+    if (!body.ip) return NextResponse.json({ error: 'ip kosong' }, { status: 400 });
+    await unbanIp(String(body.ip));
+    return NextResponse.json({ ok: true });
+  }
   if (body.action === 'settings') {
     db.settings = { ...db.settings, ...body.settings };
     await writeDB(db);
