@@ -1,11 +1,12 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { getSessionSnapshot } from '@/lib/ad-session';
+import { poolStats } from '@/lib/ad-pool';
 
 // Panel debug monetisasi: DEV ONLY (tidak dirender di production).
 // - Heatmap slot: hijau=visible/exposed, kuning=loading/loaded, merah=failed,
-//   biru=skipped, abu=created.
-// - Timeline event + health per slot (observability internal, bukan metric Adsterra).
+//   biru=skipped, abu=created. Plus unit + reason per slot.
+// - Route, device, viewport, event terkini, pool telemetry, timeline.
 const STATE_COLORS = {
   visible: '#22c55e',
   exposed: '#22c55e',
@@ -19,11 +20,13 @@ const STATE_COLORS = {
 export default function AdDebugPanel() {
   const [snap, setSnap] = useState(null);
   const [domStates, setDomStates] = useState({});
+  const [pool, setPool] = useState(null);
 
   useEffect(() => {
     function refresh() {
       try {
         setSnap(getSessionSnapshot());
+        setPool(poolStats());
         const counts = {};
         document.querySelectorAll('[data-adstate]').forEach((el) => {
           const st = el.getAttribute('data-adstate') || '?';
@@ -42,12 +45,14 @@ export default function AdDebugPanel() {
   if (!snap) return null;
   const events = Object.entries(snap.counts || {}).sort((a, b) => b[1] - a[1]).slice(0, 14);
   const slots = snap.slots || {};
-  const timeline = (snap.timeline || []).slice(-10).reverse();
+  const ctx = snap.context || {};
   return (
     <div className="ad-debug">
       <div className="ad-debug-title">AD DEBUG (dev)</div>
-      <div>Route: {String(snap.context?.page || '-')} | Device: {String(snap.context?.device || '-')}</div>
-      <div>Exposures: {snap.exposures} | DOM: {Object.entries(domStates).map(([k, v]) => `${k}:${v}`).join(' ') || '-'}</div>
+      <div>Route: {String(ctx.page || '-')}{ctx.video ? ` / ${ctx.video}` : ''}{ctx.folder ? ` / ${ctx.folder}` : ''} | Device: {String(ctx.device || '-')}{ctx.viewportW ? ` ${ctx.viewportW}px` : ''}</div>
+      <div>Event: {String(snap.lastEvent || '-')} | Exposures: {snap.exposures}</div>
+      <div>Pool: units {pool ? pool.units : '?'} · assigned {pool ? pool.assigned.length : '?'} · dupBlocked {pool ? pool.dupPrevented : '?'} · fallback {pool ? pool.fallbackUsed : '?'} · pageLoads {pool ? pool.pageLoads : '?'}</div>
+      <div>DOM: {Object.entries(domStates).map(([k, v]) => `${k}:${v}`).join(' ') || '-'}</div>
       <div className="ad-debug-heat">
         {Object.keys(slots).length === 0 ? <span>-</span> : Object.entries(slots).map(([name, s]) => {
           const color = s.errors > 0 ? STATE_COLORS.failed : s.visibles > 0 ? STATE_COLORS.visible : s.exposures > 0 ? STATE_COLORS.exposed : s.opportunities > 0 ? STATE_COLORS.loading : STATE_COLORS.created;
@@ -64,7 +69,6 @@ export default function AdDebugPanel() {
         {(snap.timeline || []).slice(-8).map((e, i) => (
           <span key={`${e.t}-${i}`}>{new Date(e.t).toLocaleTimeString('id-ID', { hour12: false })} {e.name} </span>
         ))}
-        {timeline.length === 0 ? <span>-</span> : null}
       </div>
     </div>
   );

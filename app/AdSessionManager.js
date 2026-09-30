@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { trackSession, setSessionContext } from '@/lib/ad-session';
+import { densityTier } from '@/lib/ad-placement';
 
 const DEPTHS = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 const DWELL_MS = [30000, 60000, 120000, 180000];
@@ -12,6 +13,11 @@ function deviceType() {
   if (w < 768) return 'mobile';
   if (w < 1024) return 'tablet';
   return 'desktop';
+}
+
+function deviceContext() {
+  const w = typeof window === 'undefined' ? 0 : window.innerWidth || 0;
+  return { device: deviceType(), viewportW: w, density: densityTier(w) };
 }
 
 export default function AdSessionManager() {
@@ -25,14 +31,14 @@ export default function AdSessionManager() {
     const p = pathname || '/';
     trackSession('ROUTE_COMPLETE', { to: p });
     if (p.startsWith('/d/')) {
-      setSessionContext({ page: 'video', video: p.split('/')[2] || '', device: deviceType() });
+      setSessionContext({ page: 'video', video: p.split('/')[2] || '', ...deviceContext() });
       trackSession('NAVIGATION', { to: 'video' });
     } else if (p.startsWith('/f/')) {
-      setSessionContext({ page: 'folder', folder: p.split('/')[2] || '', device: deviceType() });
+      setSessionContext({ page: 'folder', folder: p.split('/')[2] || '', ...deviceContext() });
       trackSession('NAVIGATION', { to: 'folder' });
       trackSession('FOLDER_OPEN', {});
     } else {
-      setSessionContext({ page: p, device: deviceType() });
+      setSessionContext({ page: p, ...deviceContext() });
       trackSession('NAVIGATION', { to: p });
       trackSession('PAGE_VIEW', {});
     }

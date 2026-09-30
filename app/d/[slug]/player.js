@@ -8,7 +8,7 @@ import VideoThumb from '@/app/f/[slug]/thumb';
 // agar sistem iklan bisa me-reveal placement valid. Behavior popunder milik
 // script resmi Adsterra dan tidak disentuh.
 
-const MARKS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+const MARKS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95];
 const TIME_MARKS = [10, 20, 30, 45, 60, 90, 120, 180];
 
 export default function VideoPlayer({ video, settings }) {
@@ -48,9 +48,11 @@ export default function VideoPlayer({ video, settings }) {
   }, [video.id]);
 
   function handleClick() {
-    // Klik Play asli user: buka video + beri sinyal (bukan klik iklan).
+    // Klik Play asli user: cek opportunity resmi (popunder network menangani
+    // sendiri bila mendukung), lalu video jalan normal. Tanpa intercept.
     setUnlocked(true);
     trackSession('VIDEO_START', { id: video.id });
+    trackSession('PRE_PLAY_OPPORTUNITY', { id: video.id });
     trackSession('VIDEO_PLAY', { id: video.id, via: 'unlock' });
   }
 

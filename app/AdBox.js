@@ -16,9 +16,25 @@ import { parseTrigger } from '@/lib/ad-scheduler';
 // - Kosong/tak-valid = tidak render unit (tanpa palsu, tanpa CLS).
 // - Satu init per slot per pageview + cleanup saat unmount (anti duplikat).
 
+function visibleKids(root) {
+  return [...root.children].filter(
+    (el) => !/^(SCRIPT|LINK|STYLE|META|TITLE|NOSCRIPT)$/.test(el.tagName)
+  );
+}
+
 function bodyHasContent(el) {
   if (!el) return false;
-  if (el.querySelector('iframe,img,ins,video,canvas,object,embed')) return true;
+  const frames = el.querySelectorAll('iframe');
+  for (const f of frames) {
+    // srcDoc mewarisi origin embedder: isi iframe bisa diperiksa.
+    try {
+      const d = f.contentDocument;
+      if (d && d.body && visibleKids(d.body).length > 0) return true;
+    } catch {
+      return true; // cross-origin = ada konten pihak ketiga
+    }
+  }
+  if (el.querySelector('img,ins,video,canvas,object,embed')) return true;
   return [...el.children].some(
     (c) => c.clientWidth > 0 && c.clientHeight > 0 && (c.textContent || '').trim() !== ''
   );
@@ -128,7 +144,7 @@ export default function AdBox({
     if (slotName === 'side-left' && vw < 1440) {
       return skip('viewport');
     }
-    const got = acquire(slotName, { sizeClass });
+    const got = acquire(slotName, { sizeClass, eager: rule.kind === 'load' });
     if (!got) {
       return skip('no-unit');
     }
@@ -249,10 +265,15 @@ export default function AdBox({
   // Skipped/failed = tidak render sama sekali (tanpa display:none,
   // tanpa ruang mati; status tetap terlacak di debug panel).
   if (!unit || adState === 'skipped' || adState === 'failed') return null;
-  const iso = poolFlags().isolateBanners ? isolateHtml(unit.meta) : null;
+  // Unit document.write SELALU via iframe srcDoc (satu-satunya cara yang jalan
+  // di SPA + client-mount). Ukuran dari atOptions, fallback 300x250.
+  const forceIso = Boolean(unit.meta && unit.meta.needsParser);
+  const iso = forceIso
+    ? { width: unit.meta.width || 300, height: unit.meta.height || 250, srcDoc: unit.meta.html }
+    : (poolFlags().isolateBanners ? isolateHtml(unit.meta) : null);
   const showMinH = showLabel && minH ? { minHeight: minH } : undefined;
   return (
-    <div ref={boxRef} className={`adbox ${className}`} data-adstate={adState} data-adslot={slotName} data-adreason={reason}>
+    <div ref={boxRef} className={`adbox ${className}${showLabel ? '' : ' adbox-idle'}`} data-adstate={adState} data-adslot={slotName} data-adreason={reason}>
       {showLabel || iso ? <span className="adbox-label">Advertisement</span> : null}
       {iso ? (
         <iframe title={`ad-${slotName}`} srcDoc={iso.srcDoc} width={iso.width} height={iso.height} sandbox="allow-scripts allow-popups" loading="lazy" style={{ border: 0, maxWidth: '100%' }} />
