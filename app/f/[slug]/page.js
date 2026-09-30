@@ -4,7 +4,7 @@ import { readDB } from '@/lib/db';
 import VideoThumb from './thumb';
 
 export async function generateMetadata({ params }) {
-  const db = readDB();
+  const db = await readDB();
   const folder = db.folders.find((f) => f.id === params.slug);
   return { title: folder ? `📂 ${folder.title}` : 'Folder', robots: 'noindex, nofollow' };
 }
@@ -17,8 +17,8 @@ function FolderIcon() {
   );
 }
 
-export default function FolderPage({ params, searchParams }) {
-  const db = readDB();
+export default async function FolderPage({ params, searchParams }) {
+  const db = await readDB();
   const folder = db.folders.find((f) => f.id === params.slug);
   if (!folder) return notFound();
 

@@ -9,10 +9,10 @@ export const metadata = {
   robots: 'noindex, nofollow'
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
   let settings = {};
   try {
-    settings = readDB().settings || {};
+    settings = (await readDB()).settings || {};
   } catch {
     settings = {};
   }

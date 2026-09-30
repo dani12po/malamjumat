@@ -3,15 +3,15 @@ import { readDB } from '@/lib/db';
 import VideoPlayer from './player';
 
 export async function generateMetadata({ params }) {
-  const db = readDB();
+  const db = await readDB();
   const v = db.videos.find((x) => x.id === params.slug);
   return { title: v?.title || 'Video', robots: 'noindex, nofollow' };
 }
 
 export const viewport = { width: 'device-width', initialScale: 1 };
 
-export default function VideoPage({ params }) {
-  const db = readDB();
+export default async function VideoPage({ params }) {
+  const db = await readDB();
   const video = db.videos.find((x) => x.id === params.slug);
   if (!video) return notFound();
   const settings = db.settings || {};

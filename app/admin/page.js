@@ -29,7 +29,7 @@ export default function AdminPage() {
     const res = await fetch('/api/admin');
     if (!res.ok) throw new Error(`load gagal (${res.status})`);
     const j = await res.json();
-    setDb({ folders: j.folders || [], videos: j.videos || [], settings: j.settings || {} });
+    setDb({ folders: j.folders || [], videos: j.videos || [], settings: j.settings || {}, storage: j.storage || 'file' });
     setSettingsForm(j.settings || {});
   }
 
@@ -127,7 +127,7 @@ export default function AdminPage() {
     <main className="drive-shell admin-wrap">
       <header className="drive-topbar">
         <div className="brand-mark"><svg viewBox="0 0 24 24"><path d="M10 4l2 2h7a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h5z"></path></svg></div>
-        <div className="drive-title-wrap"><div className="drive-label">CMS • {db.settings?.siteName || 'Drive'}</div><h1 className="drive-title">Kelola Folder / Video / Iklan</h1></div>
+        <div className="drive-title-wrap"><div className="drive-label">CMS • {db.settings?.siteName || 'Drive'}{db.storage ? ` • DB: ${db.storage === 'neon' ? 'Cloud' : 'Lokal'}` : ''}</div><h1 className="drive-title">Kelola Folder / Video / Iklan</h1></div>
         <button className="admin-btn ghost" onClick={() => { localStorage.removeItem('drive-admin-pass'); location.reload(); }}>Keluar</button>
       </header>
 
