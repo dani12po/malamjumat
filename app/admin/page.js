@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { detectUnitType } from '@/lib/ads';
+import { detectUnitType, parseAdUnit } from '@/lib/ads';
 
 export default function AdminPage() {
   const [pass, setPass] = useState('');
@@ -320,25 +320,39 @@ export default function AdminPage() {
                 </div>
                 <div style={{ marginTop: 12, overflowX: 'auto' }}>
                   <table className="admin-table">
-                    <thead><tr><th>#</th><th>Kode Script ({adScripts.length})</th><th>Tipe</th><th>Aksi</th></tr></thead>
+                    <thead><tr><th>#</th><th>Kode Script ({adScripts.length})</th><th>Tipe</th><th>Ukuran</th><th>Aksi</th></tr></thead>
                     <tbody>
                       {adScripts.map((c, i) => (
                         <tr key={i}>
                           <td>{i + 1}</td>
                           <td style={{ maxWidth: 480, overflow: 'hidden', textOverflow: 'ellipsis', wordBreak: 'break-all', fontFamily: 'monospace', fontSize: 12 }}>{c.length > 140 ? c.slice(0, 140) + '…' : c}</td>
                           <td className="admin-small">{detectUnitType(c)}</td>
+                          <td className="admin-small" style={{ fontFamily: 'monospace' }}>{(() => { const m = parseAdUnit(c); return m.width && m.height ? `${m.width}×${m.height}` : '—'; })()}</td>
                           <td style={{ whiteSpace: 'nowrap' }}>
                             <button className="admin-btn danger" onClick={() => confirm('Hapus script ini?') && removeAdScript(i)}>Hapus</button>
                           </td>
                         </tr>
                       ))}
-                      {adScripts.length === 0 ? <tr><td colSpan="4" className="admin-small">Belum ada script. Tempel kode dari network lalu Tambah.</td></tr> : null}
+                      {adScripts.length === 0 ? <tr><td colSpan="5" className="admin-small">Belum ada script. Tempel kode dari network lalu Tambah.</td></tr> : null}
                     </tbody>
                   </table>
                 </div>
               </>
             );
           })()}
+          <h2 style={{ marginTop: 20 }}>Batas & Perilaku Iklan</h2>
+          <div className="admin-row two" style={{ marginTop: 10 }}>
+            <div><label className="admin-small">Maks iklan per halaman (1–50, default 10)</label><input className="admin-input" type="number" min="1" max="50" value={settingsForm.maxAdsPerPage ?? 10} onChange={(e) => setSettingsForm({ ...settingsForm, maxAdsPerPage: Number(e.target.value) })} /></div>
+            <div><label className="admin-small">Native tiap N kartu (2–20, default 6)</label><input className="admin-input" type="number" min="2" max="20" value={settingsForm.feedEvery ?? 6} onChange={(e) => setSettingsForm({ ...settingsForm, feedEvery: Number(e.target.value) })} /></div>
+          </div>
+          <div className="admin-row two" style={{ marginTop: 10 }}>
+            <div><label className="admin-small">Refresh tiap N detik (0=mati, min 30)</label><input className="admin-input" type="number" min="0" max="300" value={settingsForm.refreshSeconds ?? 0} onChange={(e) => setSettingsForm({ ...settingsForm, refreshSeconds: Number(e.target.value) })} /></div>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+              <label className="admin-small" style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={settingsForm.stickyFooter !== false} onChange={(e) => setSettingsForm({ ...settingsForm, stickyFooter: e.target.checked })} /> Sticky footer</label>
+              <label className="admin-small" style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={settingsForm.isolateBanners === true} onChange={(e) => setSettingsForm({ ...settingsForm, isolateBanners: e.target.checked })} /> Isolasi banner</label>
+            </div>
+          </div>
+          <p className="admin-small" style={{ marginTop: 8 }}>Refresh default mati — aktifkan hanya bila kebijakan network mengizinkan (maks 3x, saat terlihat + tab fokus).</p>
           <div style={{ marginTop: 12 }}>
             <button className="admin-btn" onClick={() => call('settings', { settings: settingsForm })}>Simpan Iklan</button>
           </div>

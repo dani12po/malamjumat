@@ -51,9 +51,10 @@ export default function AdDebugPanel() {
       <div className="ad-debug-heat">
         {Object.keys(slots).length === 0 ? <span>-</span> : Object.entries(slots).map(([name, s]) => {
           const color = s.errors > 0 ? STATE_COLORS.failed : s.visibles > 0 ? STATE_COLORS.visible : s.exposures > 0 ? STATE_COLORS.exposed : s.opportunities > 0 ? STATE_COLORS.loading : STATE_COLORS.created;
+          const extra = `${s.unit !== undefined && s.unit !== null ? ` u${s.unit}` : ''}${s.reason ? ` ${s.reason}` : ''}`;
           return (
             <span key={name} className="ad-debug-chip" style={{ borderColor: color, color }}>
-              {name} o{s.opportunities}/e{s.exposures}/v{s.visibles}{s.errors > 0 ? `/x${s.errors}` : ''}
+              {name} o{s.opportunities}/e{s.exposures}/v{s.visibles}{s.errors > 0 ? `/x${s.errors}` : ''}{extra}
             </span>
           );
         })}

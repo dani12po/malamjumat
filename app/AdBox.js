@@ -1,53 +1,20 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { usePathname } from 'next/navigation';
 import { trackSession } from '@/lib/ad-session';
 import { onAdEvent } from '@/lib/ad-events';
-import { evaluateOpportunity, claimSlot, releaseSlot } from '@/lib/ad-placement';
+import { acquire, releaseUnit, poolFlags } from '@/lib/ad-pool';
+import { mountAdUnit, isolateHtml } from '@/lib/ad-mount';
+import { parseTrigger } from '@/lib/ad-scheduler';
 
-// Slot unit Adsterra resmi (HTML ditempel apa adanya, tanpa modifikasi).
-// State machine: created -> loading -> loaded -> visible -> exposed;
-// gagal -> failed (sekali, TANPA retry). dilewati -> skipped.
-// - Opportunity dievaluasi terpusat (unit, klaim, device, viewport).
+// Slot unit Adsterra resmi via pool (HTML ditempel apa adanya, tanpa modifikasi).
+// prop slot WAJIB unik per penempatan (pre-1, side-right, native-feed-3, ...).
+// State machine: created -> reserved/loading -> loaded -> visible -> exposed;
+// gagal -> failed (retry SEKALI 2s, lalu unit kembali ke pool); dilewati -> skipped.
+// data-adreason selalu terisi untuk debugging.
+// Refresh default MATI; bila settings.refreshSeconds >= 30: hanya saat terlihat +
+// tab fokus, maks 3x per slot. (Cek kebijakan network sebelum mengaktifkan.)
 // - Kosong/tak-valid = tidak render unit (tanpa palsu, tanpa CLS).
-// - lazy = dekat viewport (IO); eagerOnPlay = reveal saat Play (sekali).
-// - Klaim 1 slot = 1 unit per pageview + cleanup (anti duplikat).
-
-function mountAdHtml(container, html, onFail) {
-  if (!container) return null;
-  container.innerHTML = '';
-  const tmp = document.createElement('div');
-  tmp.innerHTML = html;
-  const scripts = [...tmp.querySelectorAll('script')];
-  scripts.forEach((n) => n.remove());
-  container.innerHTML = tmp.innerHTML;
-  if (scripts.length === 0) return null;
-  let failed = false;
-  const markFail = () => {
-    if (failed) return;
-    failed = true;
-    if (onFail) onFail();
-  };
-  scripts.forEach((old) => {
-    const s = document.createElement('script');
-    for (const a of old.attributes) s.setAttribute(a.name, a.value);
-    if (!s.hasAttribute('data-cfasync')) s.setAttribute('data-cfasync', 'false');
-    s.textContent = old.textContent || '';
-    s.onerror = markFail;
-    container.appendChild(s);
-  });
-  let cancelled = false;
-  const timer = setTimeout(() => {
-    if (cancelled || failed || !container) return;
-    if (container.textContent.trim() === '' && container.querySelectorAll('iframe,img,ins').length === 0) {
-      markFail();
-    }
-  }, 8000);
-  return () => {
-    cancelled = true;
-    clearTimeout(timer);
-  };
-}
+// - Satu init per slot per pageview + cleanup saat unmount (anti duplikat).
 
 function clientDevice() {
   if (typeof window === 'undefined') return 'unknown';
@@ -57,96 +24,176 @@ function clientDevice() {
   return 'desktop';
 }
 
-export default function AdBox({ html, slot = 'slot', minH = 100, className = '', lazy = false, eagerOnPlay = false }) {
-  const pathname = usePathname();
+export default function AdBox({
+  slot,
+  sizeClass = 'med',
+  minH = 100,
+  className = '',
+  trigger = 'load'
+}) {
+  const slotName = slot || 'slot';
   const boxRef = useRef(null);
   const bodyRef = useRef(null);
-  const [ready, setReady] = useState(!lazy);
+  const [fired, setFired] = useState(trigger === 'load');
+  const [unit, setUnit] = useState(null);
+  const [reason, setReason] = useState(trigger === 'load' ? 'created' : 'reserved');
   const [adState, setAdState] = useState('created');
-  const [verdict, setVerdict] = useState(null);
+  const [refreshN, setRefreshN] = useState(0);
   const visibleSent = useRef(false);
   const oppSent = useRef(false);
+  const triedRetry = useRef(false);
+  const claimToken = useRef(null);
+  const pathnameRef = useRef('');
 
-  // Opportunity tercatat sekali saat slot valid ada (bukan impression).
-  useEffect(() => {
-    if (!html || oppSent.current) return;
-    oppSent.current = true;
-    trackSession('AD_OPPORTUNITY', { slot });
-  }, [html, slot]);
+  if (!slot && typeof window !== 'undefined') {
+    console.warn('[ads] AdBox tanpa prop slot — pakai nama unik per penempatan.');
+  }
 
-  // Evaluasi terpusat saat siap dipasang.
-  useEffect(() => {
-    if (!html || !ready || verdict) return;
-    const v = evaluateOpportunity({
-      slot,
-      unit: html,
-      claimed: claimSlot(pathname, slot, html),
-      device: clientDevice(),
-      viewportW: typeof window === 'undefined' ? 0 : window.innerWidth || 0
-    });
-    setVerdict(v);
-    if (!v.valid) setAdState('skipped');
-  }, [html, ready, verdict, slot, pathname]);
+  const rule = parseTrigger(trigger);
 
-  // Lazy via scroll.
+  // 1) Trigger engine: reserve (null) sampai pemicu terpenuhi. Reset per pageview.
   useEffect(() => {
-    if (!html || ready) return;
-    setAdState('loading');
-    const el = boxRef.current;
-    if (!el || typeof IntersectionObserver === 'undefined') {
-      setReady(true);
+    const p = window.location ? window.location.pathname : '';
+    pathnameRef.current = p;
+    if (rule.kind !== 'load') {
+      setFired(false);
+      setUnit(null);
+      setReason('reserved');
+      setAdState('created');
+      setRefreshN(0);
+      visibleSent.current = false;
+      oppSent.current = false;
+      triedRetry.current = false;
+    }
+    if (rule.kind === 'load') {
+      setFired(true);
       return;
     }
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setReady(true);
-          io.disconnect();
+    let off = null;
+    let timer = null;
+    let onScroll = null;
+    if (rule.kind === 'scroll') {
+      onScroll = () => {
+        const el = document.documentElement;
+        const max = el.scrollHeight - el.clientHeight;
+        if (max <= 0) return;
+        if (Math.round((window.scrollY / max) * 100) >= rule.value) {
+          setFired(true);
+          window.removeEventListener('scroll', onScroll);
         }
-      },
-      { rootMargin: '500px 0px' }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [html, ready]);
-
-  // Event engagement: Play -> pasang lebih awal (sekali saja).
-  useEffect(() => {
-    if (!html || ready || !eagerOnPlay) return;
-    const off = onAdEvent('VIDEO_PLAY', () => {
-      setReady(true);
-      off();
-    });
-    return off;
-  }, [html, ready, eagerOnPlay]);
-
-  // Init unit sekali; lepas klaim + bersihkan saat unmount.
-  useEffect(() => {
-    if (!html || !ready || !verdict || !verdict.valid) return;
-    const el = bodyRef.current;
-    const cancelEmpty = mountAdHtml(el, html, () => {
-      setAdState('failed');
-      trackSession('AD_ERROR', { slot });
-    });
-    setAdState('loaded');
-    trackSession('AD_EXPOSED', { slot });
+      };
+      window.addEventListener('scroll', onScroll, { passive: true });
+    } else if (rule.kind === 'dwell') {
+      timer = setTimeout(() => setFired(true), Math.max(0, rule.value) * 1000);
+    } else if (rule.kind === 'video:play' || rule.kind === 'video:complete' || rule.kind === 'return') {
+      const ev = rule.kind === 'video:play' ? 'VIDEO_PLAY' : rule.kind === 'video:complete' ? 'VIDEO_COMPLETE' : 'PAGE_RETURN';
+      off = onAdEvent(ev, () => {
+        setFired(true);
+        if (off) off();
+      });
+    } else if (rule.kind === 'video:progress') {
+      off = onAdEvent('VIDEO_PROGRESS', (d) => {
+        if (d && Number(d.percent) >= rule.value) {
+          setFired(true);
+          if (off) off();
+        }
+      });
+    }
     return () => {
-      if (cancelEmpty) cancelEmpty();
-      releaseSlot(pathname, slot);
+      if (onScroll) window.removeEventListener('scroll', onScroll);
+      if (timer) clearTimeout(timer);
+      if (off) off();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trigger]);
+
+  // 2) Acquire dari pool setelah device/viewport lolos (skipped tidak klaim).
+  useEffect(() => {
+    if (!fired) return;
+    setAdState('loading');
+    const device = clientDevice();
+    const vw = window.innerWidth || 0;
+    if ((slotName === 'sidebar' || slotName === 'side-right' || slotName === 'side-left') && device !== 'desktop') {
+      return skip('device');
+    }
+    if (slotName === 'side-left' && vw < 1440) {
+      return skip('viewport');
+    }
+    const got = acquire(slotName, { sizeClass });
+    if (!got) {
+      return skip('no-unit');
+    }
+    claimToken.current = got.token || null;
+    setUnit(got);
+    setReason('ok');
+    if (!oppSent.current) {
+      oppSent.current = true;
+      trackSession('AD_OPPORTUNITY', { slot: slotName, unit: got.idx });
+    }
+    function skip(r) {
+      setReason(r);
+      setAdState('skipped');
+      trackSession('AD_SKIPPED', { slot: slotName, reason: r });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fired]);
+
+  // 3) Mount (antrean banner) / isolate iframe; retry SEKALI lalu lepas unit.
+  useEffect(() => {
+    if (!unit) return;
+    const el = bodyRef.current;
+    const flags = poolFlags();
+    if (flags.isolateBanners) {
+      const iso = isolateHtml(unit.meta);
+      if (iso) {
+        setAdState('loaded');
+        trackSession('AD_EXPOSED', { slot: slotName, unit: unit.idx, reason: 'isolated' });
+        return () => {
+          releaseUnit(slotName, claimToken.current);
+        };
+      }
+    }
+    let cancelled = false;
+    const doMount = (isRetry) => {
+      mountAdUnit(
+        el,
+        unit.meta,
+        () => {
+          if (cancelled) return;
+          if (!isRetry) {
+            triedRetry.current = true;
+            setTimeout(() => {
+              if (!cancelled) doMount(true);
+            }, 2000);
+            return;
+          }
+          setReason('failed');
+          setAdState('failed');
+          trackSession('AD_ERROR', { slot: slotName, unit: unit.idx });
+          releaseUnit(slotName, claimToken.current); // kembalikan ke pool: maks 1x pindah
+        }
+      );
+    };
+    doMount(false);
+    setAdState('loaded');
+    trackSession('AD_EXPOSED', { slot: slotName, unit: unit.idx, reason: 'ok' });
+    return () => {
+      cancelled = true;
+      releaseUnit(slotName, claimToken.current);
       if (el) el.innerHTML = '';
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [html, ready, verdict]);
+  }, [unit]);
 
-  // Tandai terlihat (sekali).
+  // 4) Terlihat (sekali) + refresh terkendali (default mati).
   useEffect(() => {
-    if (!html || !ready || !verdict || !verdict.valid || visibleSent.current) return;
+    if (!unit || visibleSent.current) return;
     const el = boxRef.current;
     const mark = () => {
       if (visibleSent.current) return;
       visibleSent.current = true;
       setAdState('visible');
-      trackSession('AD_VISIBLE', { slot });
+      trackSession('AD_VISIBLE', { slot: slotName, unit: unit.idx });
     };
     if (!el || typeof IntersectionObserver === 'undefined') {
       mark();
@@ -163,13 +210,40 @@ export default function AdBox({ html, slot = 'slot', minH = 100, className = '',
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [html, ready, verdict, slot]);
+  }, [unit, slotName]);
 
-  if (!html) return null;
+  useEffect(() => {
+    const flags = poolFlags();
+    const sec = Number(flags.refreshSeconds || 0);
+    if (!unit || !(sec >= 30)) return; // default MATI
+    let n = 0;
+    const t = setInterval(() => {
+      if (n >= 3 || document.hidden) return; // maks 3x + hanya tab fokus
+      const el = bodyRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const inView = r.bottom > 0 && r.top < (window.innerHeight || 0);
+      if (!inView) return;
+      n += 1;
+      setRefreshN(n);
+      mountAdUnit(el, unit.meta, null);
+      trackSession('AD_REFRESH', { slot: slotName, unit: unit.idx, n });
+    }, sec * 1000);
+    return () => clearInterval(t);
+  }, [unit, slotName]);
+
+  // Skipped/failed = tidak render sama sekali (tanpa display:none,
+  // tanpa ruang mati; status tetap terlacak di debug panel).
+  if (!unit || adState === 'skipped' || adState === 'failed') return null;
+  const iso = poolFlags().isolateBanners ? isolateHtml(unit.meta) : null;
   return (
-    <div ref={boxRef} className={`adbox ${className}`} data-adstate={adState} data-adslot={slot}>
+    <div ref={boxRef} className={`adbox ${className}`} data-adstate={adState} data-adslot={slotName} data-adreason={reason}>
       <span className="adbox-label">Advertisement</span>
-      <div ref={bodyRef} className="adbox-body" style={minH ? { minHeight: minH } : undefined} />
+      {iso ? (
+        <iframe title={`ad-${slotName}`} srcDoc={iso.srcDoc} width={iso.width} height={iso.height} sandbox="allow-scripts allow-popups" loading="lazy" style={{ border: 0, maxWidth: '100%' }} />
+      ) : (
+        <div ref={bodyRef} className="adbox-body" style={minH ? { minHeight: minH } : undefined} />
+      )}
     </div>
   );
 }

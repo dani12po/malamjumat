@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { readDB, writeDB, uid, isCloudDb } from '@/lib/db';
 import { rateLimit, clientIp } from '@/lib/ratelimit';
 import { isBanned, noteFail, listBans, unbanIp } from '@/lib/ipban';
@@ -58,8 +59,28 @@ export async function POST(req) {
     return NextResponse.json({ ok: true });
   }
   if (body.action === 'settings') {
-    db.settings = { ...db.settings, ...body.settings };
+    const s = body.settings || {};
+    // Validasi field iklan: angka di-clamp, boolean dipaksa, refresh <30 dtk ditolak.
+    const num = (v, d, min, max) => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return d;
+      return Math.min(max, Math.max(min, Math.round(n)));
+    };
+    if (s.maxAdsPerPage !== undefined) s.maxAdsPerPage = num(s.maxAdsPerPage, 10, 1, 50);
+    if (s.feedEvery !== undefined) s.feedEvery = num(s.feedEvery, 6, 2, 20);
+    if (s.stickyFooter !== undefined) s.stickyFooter = s.stickyFooter === true || s.stickyFooter === 1;
+    if (s.isolateBanners !== undefined) s.isolateBanners = s.isolateBanners === true || s.isolateBanners === 1;
+    if (s.refreshSeconds !== undefined) {
+      const r = num(s.refreshSeconds, 0, 0, 300);
+      s.refreshSeconds = r > 0 && r < 30 ? 0 : r; // <30 dtk = off (kebijakan network)
+    }
+    db.settings = { ...db.settings, ...s };
     await writeDB(db);
+    try {
+      revalidateTag('ad-settings');
+    } catch {
+      // abaikan (non-fatal)
+    }
     return NextResponse.json({ ok: true, settings: db.settings });
   }
   if (body.action === 'reset') {

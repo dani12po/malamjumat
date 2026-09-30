@@ -3,12 +3,7 @@ import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { trackSession, setSessionContext } from '@/lib/ad-session';
 
-// Centralized session monetization engine (client).
-// Lifecycle, scroll 5..100, dwell timers, focus/blur/exit, viewport,
-// link-click intent (related/folder/pagination), route changes.
-// Murni tracking + sinyal; TIDAK memaksa klik/popup. Cleanup semua.
-
-const DEPTHS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
+const DEPTHS = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 const DWELL_MS = [30000, 60000, 120000, 180000];
 
 function deviceType() {
@@ -24,7 +19,7 @@ export default function AdSessionManager() {
   const depths = useRef(new Set());
   const hiddenAt = useRef(0);
 
-  // Lifecycle tiap ganti halaman = lifecycle iklan baru (route complete).
+  // Lifecycle tiap ganti halaman (navigasi SPA = lifecycle iklan baru).
   useEffect(() => {
     depths.current = new Set();
     const p = pathname || '/';

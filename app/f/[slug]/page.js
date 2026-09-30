@@ -32,6 +32,7 @@ export default async function FolderPage({ params, searchParams }) {
   const { bodyHtml } = splitAdScripts(settings);
   const U = allocateUnits(bodyHtml, 'folder', detectDevice(headers().get('user-agent')));
   const perPage = Number(settings.perPage) || 20;
+  const feedEvery = Math.min(20, Math.max(2, Number(settings.feedEvery) || 6));
   const page = Math.max(1, parseInt(searchParams?.p || '1', 10) || 1);
 
   const childFolders = db.folders.filter((f) => f.parentId === folder.id);
@@ -60,7 +61,7 @@ export default async function FolderPage({ params, searchParams }) {
         </div>
       </header>
 
-      <TopAd unit={U.top} />
+      <TopAd slot="top" />
 
       <section>
         <div className="section-title">Folder</div>
@@ -84,7 +85,8 @@ export default async function FolderPage({ params, searchParams }) {
         <div className="section-title">Video</div>
         <div className="file-grid">
           {videos.map((v, i) => {
-            const inGrid = i === 5 ? U.native1 : i === 11 ? U.native2 : '';
+            const feedK = Math.floor((i + 1) / feedEvery);
+            const inGrid = (i + 1) % feedEvery === 0 ? `native-feed-${feedK}` : '';
             return (
               <Fragment key={v.id}>
                 <article className="drive-file-card">
@@ -103,7 +105,7 @@ export default async function FolderPage({ params, searchParams }) {
                 </article>
                 {inGrid ? (
                   <div className="autoad-cell">
-                    <NativeAd unit={inGrid} />
+                    <NativeAd slot={inGrid} />
                   </div>
                 ) : null}
               </Fragment>
@@ -113,7 +115,7 @@ export default async function FolderPage({ params, searchParams }) {
         </div>
       </section>
 
-      <BottomAd unit={U.bottom} />
+      <BottomAd slot="bottom-1" />
 
       {totalPages > 1 ? (
         <nav className="drive-pagination" aria-label="Pagination">
@@ -133,9 +135,9 @@ export default async function FolderPage({ params, searchParams }) {
         </nav>
       ) : null}
 
-      <BottomAd unit={U.footer} />
+      <BottomAd slot="bottom-2" />
       <SmartCTA settings={settings}>Jelajahi Sponsor</SmartCTA>
-      <MobileAd unit={U.mobile} />
+      <MobileAd slot="mobile-inline" />
     </main>
   );
 }
