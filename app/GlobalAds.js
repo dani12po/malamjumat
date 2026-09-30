@@ -13,6 +13,7 @@ function injectHtmlScripts(html) {
   holder.querySelectorAll('script').forEach((old) => {
     const s = document.createElement('script');
     for (const attr of old.attributes) s.setAttribute(attr.name, attr.value);
+    s.setAttribute('data-cfasync', 'false');
     s.textContent = old.textContent || '';
     (document.head || document.body).appendChild(s);
     added.push(s);
