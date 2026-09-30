@@ -16,6 +16,14 @@ import { parseTrigger } from '@/lib/ad-scheduler';
 // - Kosong/tak-valid = tidak render unit (tanpa palsu, tanpa CLS).
 // - Satu init per slot per pageview + cleanup saat unmount (anti duplikat).
 
+function bodyHasContent(el) {
+  if (!el) return false;
+  if (el.querySelector('iframe,img,ins,video,canvas,object,embed')) return true;
+  return [...el.children].some(
+    (c) => c.clientWidth > 0 && c.clientHeight > 0 && (c.textContent || '').trim() !== ''
+  );
+}
+
 function clientDevice() {
   if (typeof window === 'undefined') return 'unknown';
   const w = window.innerWidth || 0;
@@ -39,6 +47,7 @@ export default function AdBox({
   const [reason, setReason] = useState(trigger === 'load' ? 'created' : 'reserved');
   const [adState, setAdState] = useState('created');
   const [refreshN, setRefreshN] = useState(0);
+  const [showLabel, setShowLabel] = useState(false);
   const visibleSent = useRef(false);
   const oppSent = useRef(false);
   const triedRetry = useRef(false);
@@ -177,8 +186,13 @@ export default function AdBox({
     doMount(false);
     setAdState('loaded');
     trackSession('AD_EXPOSED', { slot: slotName, unit: unit.idx, reason: 'ok' });
+    // Label + ruang hanya bila konten benar-benar ter-render (maks 2.5 dtk).
+    const labelTimer = setTimeout(() => {
+      if (!cancelled && bodyHasContent(el)) setShowLabel(true);
+    }, 2500);
     return () => {
       cancelled = true;
+      clearTimeout(labelTimer);
       releaseUnit(slotName, claimToken.current);
       if (el) el.innerHTML = '';
     };
@@ -236,13 +250,14 @@ export default function AdBox({
   // tanpa ruang mati; status tetap terlacak di debug panel).
   if (!unit || adState === 'skipped' || adState === 'failed') return null;
   const iso = poolFlags().isolateBanners ? isolateHtml(unit.meta) : null;
+  const showMinH = showLabel && minH ? { minHeight: minH } : undefined;
   return (
     <div ref={boxRef} className={`adbox ${className}`} data-adstate={adState} data-adslot={slotName} data-adreason={reason}>
-      <span className="adbox-label">Advertisement</span>
+      {showLabel || iso ? <span className="adbox-label">Advertisement</span> : null}
       {iso ? (
         <iframe title={`ad-${slotName}`} srcDoc={iso.srcDoc} width={iso.width} height={iso.height} sandbox="allow-scripts allow-popups" loading="lazy" style={{ border: 0, maxWidth: '100%' }} />
       ) : (
-        <div ref={bodyRef} className="adbox-body" style={minH ? { minHeight: minH } : undefined} />
+        <div ref={bodyRef} className="adbox-body" style={showMinH} />
       )}
     </div>
   );
