@@ -13,9 +13,15 @@ export async function GET() {
 }
 
 export async function POST(req) {
-  if (!checkAuth(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  const body = await req.json();
+  if (!checkAuth(req)) return NextResponse.json({ error: 'unauthorized: password admin salah' }, { status: 401 });
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'request tidak valid (bukan JSON)' }, { status: 400 });
+  }
   const db = readDB();
+  try {
   if (body.action === 'settings') {
     db.settings = { ...db.settings, ...body.settings };
     writeDB(db);
@@ -82,4 +88,7 @@ export async function POST(req) {
     return NextResponse.json({ ok: true });
   }
   return NextResponse.json({ error: 'unknown action' }, { status: 400 });
+  } catch {
+    return NextResponse.json({ error: 'gagal menyimpan database (storage mungkin read-only)' }, { status: 500 });
+  }
 }

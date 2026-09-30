@@ -27,6 +27,7 @@ export default function AdminPage() {
 
   async function load() {
     const res = await fetch('/api/admin');
+    if (!res.ok) throw new Error(`load gagal (${res.status})`);
     const j = await res.json();
     setDb({ folders: j.folders || [], videos: j.videos || [], settings: j.settings || {} });
     setSettingsForm(j.settings || {});
@@ -39,20 +40,35 @@ export default function AdminPage() {
       if (res.ok) {
         setAuthed(true);
         localStorage.setItem('drive-admin-pass', p);
-        await load();
+        try {
+          await load();
+        } catch {
+          if (!silent) alert('Login OK, tapi data gagal dimuat. Refresh halaman.');
+        }
       } else if (!silent) alert('Password salah');
     } finally { setLoading(false); }
   }
 
   async function call(action, payload = {}) {
-    const res = await fetch('/api/admin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-pass': pass },
-      body: JSON.stringify({ action, ...payload })
-    });
-    const j = await res.json();
-    if (!res.ok) { alert(j.error || 'Gagal'); return null; }
-    await load();
+    let res;
+    try {
+      res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-pass': pass },
+        body: JSON.stringify({ action, ...payload })
+      });
+    } catch {
+      alert('Tidak bisa menghubungi server. Pastikan server nyala / koneksi normal.');
+      return null;
+    }
+    let j = null;
+    try { j = await res.json(); } catch { /* respon bukan JSON */ }
+    if (!res.ok) { alert('Gagal menyimpan: ' + (j?.error || `server error ${res.status}`)); return null; }
+    try {
+      await load();
+    } catch {
+      alert('Tersimpan, tapi daftar gagal dimuat ulang. Refresh halaman.');
+    }
     return j;
   }
 
