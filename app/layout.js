@@ -3,7 +3,6 @@ import Script from 'next/script';
 import { headers } from 'next/headers';
 import { readDB } from '@/lib/db';
 import { splitAdScripts } from '@/lib/ads';
-import AdOverlays from './AdOverlays';
 
 export const metadata = {
   title: 'Drive Video',
@@ -23,14 +22,13 @@ export default async function RootLayout({ children }) {
   }
   // Script src-only dimuat di <head> sebelum interaktif = tayang cepat.
   // HTML body dirender mentah (SSR) langsung di page f/d — GlobalAds idle (hindari duplikat).
-  const { headSrcs, bodyHtml } = splitAdScripts(settings);
+  const { headSrcs } = splitAdScripts(settings);
   // /admin steril total dari iklan (cek server-side via middleware).
   const pageIsAdmin = (headers().get('x-pathname') || '').startsWith('/admin');
   return (
     <html lang="id">
       <body>
         {children}
-        {!pageIsAdmin && <AdOverlays units={bodyHtml} />}
         {!pageIsAdmin && headSrcs.map((src) => (
           <Script key={src} src={src} strategy="beforeInteractive" data-cfasync="false" />
         ))}

@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { readDB } from '@/lib/db';
+import { unitAt, splitAdScripts } from '@/lib/ads';
+import AdBox from '@/app/AdBox';
 import VideoThumb from './thumb';
 
 export async function generateMetadata({ params }) {
@@ -23,6 +25,7 @@ export default async function FolderPage({ params, searchParams }) {
   if (!folder) return notFound();
 
   const settings = db.settings || {};
+  const { bodyHtml } = splitAdScripts(settings);
   const perPage = Number(settings.perPage) || 20;
   const page = Math.max(1, parseInt(searchParams?.p || '1', 10) || 1);
 
@@ -51,6 +54,8 @@ export default async function FolderPage({ params, searchParams }) {
           <h1 className="drive-title">{folder.title}</h1>
         </div>
       </header>
+
+      <AdBox html={unitAt(bodyHtml, 0)} minH={90} />
 
       <section>
         <div className="section-title">Folder</div>
@@ -92,6 +97,8 @@ export default async function FolderPage({ params, searchParams }) {
           {videos.length === 0 ? <div className="empty-state">Belum ada video di folder ini.</div> : null}
         </div>
       </section>
+
+      <AdBox html={unitAt(bodyHtml, 1)} minH={90} />
 
       {totalPages > 1 ? (
         <nav className="drive-pagination" aria-label="Pagination">

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { detectUnitType } from '@/lib/ads';
 
 export default function AdminPage() {
   const [pass, setPass] = useState('');
@@ -288,7 +289,7 @@ export default function AdminPage() {
             );
           })()}
           <h2 style={{ marginTop: 20 }}>Kode Script Iklan — jalan otomatis di semua page</h2>
-          <p className="admin-small">Tempel tag <b>&lt;script&gt;</b> utuh dari network. Script src jalan di head; banner tampil transparan (sticky bawah + interstitial, tanpa merusak layout). Tambah banner ke-2 untuk mengaktifkan interstitial.</p>
+          <p className="admin-small">Tempel tag <b>&lt;script&gt;</b> utuh dari network (kolom Tipe menebak jenisnya). Banner dipakai berurutan: pre-video → post → deskripsi → terkait → sidebar. Tiap kode tampil maks 1x per halaman; slot tanpa unit tidak render.</p>
           {(() => {
             const adScripts = Array.isArray(settingsForm.adScripts)
               ? settingsForm.adScripts
@@ -319,18 +320,19 @@ export default function AdminPage() {
                 </div>
                 <div style={{ marginTop: 12, overflowX: 'auto' }}>
                   <table className="admin-table">
-                    <thead><tr><th>#</th><th>Kode Script ({adScripts.length})</th><th>Aksi</th></tr></thead>
+                    <thead><tr><th>#</th><th>Kode Script ({adScripts.length})</th><th>Tipe</th><th>Aksi</th></tr></thead>
                     <tbody>
                       {adScripts.map((c, i) => (
                         <tr key={i}>
                           <td>{i + 1}</td>
                           <td style={{ maxWidth: 480, overflow: 'hidden', textOverflow: 'ellipsis', wordBreak: 'break-all', fontFamily: 'monospace', fontSize: 12 }}>{c.length > 140 ? c.slice(0, 140) + '…' : c}</td>
+                          <td className="admin-small">{detectUnitType(c)}</td>
                           <td style={{ whiteSpace: 'nowrap' }}>
                             <button className="admin-btn danger" onClick={() => confirm('Hapus script ini?') && removeAdScript(i)}>Hapus</button>
                           </td>
                         </tr>
                       ))}
-                      {adScripts.length === 0 ? <tr><td colSpan="3" className="admin-small">Belum ada script. Tempel kode dari network lalu Tambah.</td></tr> : null}
+                      {adScripts.length === 0 ? <tr><td colSpan="4" className="admin-small">Belum ada script. Tempel kode dari network lalu Tambah.</td></tr> : null}
                     </tbody>
                   </table>
                 </div>
