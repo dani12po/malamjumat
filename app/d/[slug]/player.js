@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { trackSession } from '@/lib/ad-session';
+import VideoThumb from '@/app/f/[slug]/thumb';
 
 // Player murni: klik thumbnail langsung play (tanpa gate iklan, tanpa intercept).
 // Hanya memancarkan event tontonan (VIDEO_OPEN/PLAY/PAUSE/RESUME/PROGRESS/COMPLETE)
@@ -97,8 +98,7 @@ export default function VideoPlayer({ video, settings }) {
       <div id="player">
         {!unlocked ? (
           <div className="video-link" onClick={handleClick} style={{ cursor: 'pointer' }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="thumbnail" src={video.thumb} alt={video.title} />
+            <VideoThumb src={video.thumb} alt={video.title} className="thumbnail" />
           </div>
         ) : video.embed ? (
           <iframe
