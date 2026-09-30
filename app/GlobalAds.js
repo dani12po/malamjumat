@@ -30,8 +30,11 @@ export default function GlobalAds({ settings }) {
   useEffect(() => {
     if (isAdmin) return;
     const cleanups = [];
-    if (settings?.popunderScript) cleanups.push(injectHtmlScripts(settings.popunderScript));
-    if (settings?.customHeadScript) cleanups.push(injectHtmlScripts(settings.customHeadScript));
+    // daftar kode script baru, fallback ke kolom lama bila belum migrasi
+    const scripts = Array.isArray(settings?.adScripts) && settings.adScripts.length > 0
+      ? settings.adScripts
+      : [settings?.popunderScript, settings?.customHeadScript].filter(Boolean);
+    scripts.forEach((html) => cleanups.push(injectHtmlScripts(html)));
     return () => cleanups.forEach((fn) => fn && fn());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);

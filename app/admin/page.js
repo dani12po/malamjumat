@@ -17,6 +17,7 @@ export default function AdminPage() {
   const [folderFilter, setFolderFilter] = useState('all');
   const [settingsForm, setSettingsForm] = useState({});
   const [newBacklink, setNewBacklink] = useState('');
+  const [newAdScript, setNewAdScript] = useState('');
 
   useEffect(() => {
     const saved = localStorage.getItem('drive-admin-pass');
@@ -226,7 +227,7 @@ export default function AdminPage() {
       {tab === 'ads' && (
         <div className="admin-card">
           <h2>Backlink Iklan — sumber uangnya di sini</h2>
-          <p className="admin-small">Tambah backlink / direct link dari network (boleh banyak). Iklan tampil otomatis dari backlink ini — sel native di tengah grid folder + slot atas-bawah di page video. Link HANYA terbuka saat iklannya diklik.</p>
+          <p className="admin-small">Tambah backlink / direct link dari network (boleh banyak). Link HANYA terbuka saat iklannya diklik. Kode script di bawah jalan otomatis di semua page user.</p>
           {(() => {
             const backlinks = Array.isArray(settingsForm.backlinks)
               ? settingsForm.backlinks
@@ -269,12 +270,56 @@ export default function AdminPage() {
               </>
             );
           })()}
-          <div className="admin-row" style={{ marginTop: 16 }}>
-            <label className="admin-small">Popunder / Social Bar Script (tampil di semua halaman — opsional)</label>
-            <textarea className="admin-textarea" value={settingsForm.popunderScript || ''} onChange={(e) => setSettingsForm({ ...settingsForm, popunderScript: e.target.value })} />
-            <label className="admin-small" style={{ marginTop: 10 }}>Custom Head Script (gtag / ad-manager / histats — opsional)</label>
-            <textarea className="admin-textarea" value={settingsForm.customHeadScript || ''} onChange={(e) => setSettingsForm({ ...settingsForm, customHeadScript: e.target.value })} />
-          </div>
+          <h2 style={{ marginTop: 20 }}>Kode Script Iklan — jalan otomatis di semua page</h2>
+          <p className="admin-small">Tempel tag <b>&lt;script&gt;</b> utuh dari network (mis: cheflobesofficer, Adsterra, Monetag) atau URL .js mentah — otomatis dibungkus jadi tag script. Aktif di semua page user, tidak di /admin.</p>
+          {(() => {
+            const adScripts = Array.isArray(settingsForm.adScripts)
+              ? settingsForm.adScripts
+              : [settingsForm.popunderScript, settingsForm.customHeadScript].filter(Boolean);
+            function normalizeScript(input) {
+              const t = (input || '').trim();
+              if (!t) return '';
+              if (/<script[\s>]/i.test(t)) return t;
+              if (/^https?:\/\/\S+$/i.test(t)) return `<script src="${t}"></script>`;
+              return '';
+            }
+            function addAdScript() {
+              const code = normalizeScript(newAdScript);
+              if (!code) return alert('Tempel tag <script> utuh atau URL .js (https://...)');
+              const next = [...adScripts, code];
+              setSettingsForm({ ...settingsForm, adScripts: next, popunderScript: '', customHeadScript: '' });
+              setNewAdScript('');
+            }
+            function removeAdScript(idx) {
+              const next = adScripts.filter((_, i) => i !== idx);
+              setSettingsForm({ ...settingsForm, adScripts: next, popunderScript: '', customHeadScript: '' });
+            }
+            return (
+              <>
+                <div className="admin-row two" style={{ marginTop: 10 }}>
+                  <input className="admin-input" style={{ fontFamily: 'monospace', fontSize: 12 }} value={newAdScript} onChange={(e) => setNewAdScript(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addAdScript(); }} placeholder='<script src="https://cheflobesofficer.com/...js"></script>' />
+                  <button className="admin-btn" onClick={addAdScript}>+ Tambah Script</button>
+                </div>
+                <div style={{ marginTop: 12, overflowX: 'auto' }}>
+                  <table className="admin-table">
+                    <thead><tr><th>#</th><th>Kode Script ({adScripts.length})</th><th>Aksi</th></tr></thead>
+                    <tbody>
+                      {adScripts.map((c, i) => (
+                        <tr key={i}>
+                          <td>{i + 1}</td>
+                          <td style={{ maxWidth: 480, overflow: 'hidden', textOverflow: 'ellipsis', wordBreak: 'break-all', fontFamily: 'monospace', fontSize: 12 }}>{c.length > 140 ? c.slice(0, 140) + '…' : c}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            <button className="admin-btn danger" onClick={() => confirm('Hapus script ini?') && removeAdScript(i)}>Hapus</button>
+                          </td>
+                        </tr>
+                      ))}
+                      {adScripts.length === 0 ? <tr><td colSpan="3" className="admin-small">Belum ada script. Tempel kode dari network lalu Tambah.</td></tr> : null}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            );
+          })()}
           <div style={{ marginTop: 12 }}>
             <button className="admin-btn" onClick={() => call('settings', { settings: settingsForm })}>Simpan Iklan</button>
           </div>
