@@ -19,15 +19,15 @@ export function PostVideoAd({ slot = 'post-video', trigger = 'video:play' }) {
   return <AdBox slot={slot} trigger={trigger} minH={100} className="adbox-med" />;
 }
 
-export function MidContentAd({ slot = 'mid-content', trigger = 'scroll:30' }) {
+export function MidContentAd({ slot = 'mid-content', trigger = 'scroll:10' }) {
   return <AdBox slot={slot} trigger={trigger} minH={100} className="adbox-med" />;
 }
 
-export function NativeAd({ slot = 'native', trigger = 'scroll:30' }) {
+export function NativeAd({ slot = 'native', trigger = 'scroll:10' }) {
   return <AdBox slot={slot} trigger={trigger} minH={120} className="adbox-med" />;
 }
 
-export function SidebarAd({ slot = 'sidebar', trigger = 'scroll:30' }) {
+export function SidebarAd({ slot = 'sidebar', trigger = 'scroll:10' }) {
   return <AdBox slot={slot} trigger={trigger} minH={250} className="adbox-side" />;
 }
 

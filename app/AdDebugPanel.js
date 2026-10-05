@@ -18,11 +18,31 @@ const STATE_COLORS = {
 };
 
 export default function AdDebugPanel() {
+  const [enabled, setEnabled] = useState(false);
   const [snap, setSnap] = useState(null);
   const [domStates, setDomStates] = useState({});
   const [pool, setPool] = useState(null);
 
   useEffect(() => {
+    try {
+      if (process.env.NODE_ENV !== 'production') {
+        setEnabled(true);
+        return;
+      }
+      const q = new URLSearchParams(window.location.search || '');
+      if (q.get('ads_debug') === '1') {
+        sessionStorage.setItem('ads-debug', '1');
+        setEnabled(true);
+        return;
+      }
+      if (sessionStorage.getItem('ads-debug') === '1') setEnabled(true);
+    } catch {
+      // abaikan
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
     function refresh() {
       try {
         setSnap(getSessionSnapshot());
@@ -40,9 +60,9 @@ export default function AdDebugPanel() {
     refresh();
     const t = setInterval(refresh, 2000);
     return () => clearInterval(t);
-  }, []);
+  }, [enabled]);
 
-  if (!snap) return null;
+  if (!enabled || !snap) return null;
   const events = Object.entries(snap.counts || {}).sort((a, b) => b[1] - a[1]).slice(0, 14);
   const slots = snap.slots || {};
   const ctx = snap.context || {};

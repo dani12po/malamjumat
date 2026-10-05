@@ -138,7 +138,7 @@ export default function AdBox({
     setAdState('loading');
     const device = clientDevice();
     const vw = window.innerWidth || 0;
-    if ((slotName === 'sidebar' || slotName === 'side-right' || slotName === 'side-left') && device !== 'desktop') {
+    if (slotName === 'side-left' && device !== 'desktop') {
       return skip('device');
     }
     if (slotName === 'side-left' && vw < 1440) {

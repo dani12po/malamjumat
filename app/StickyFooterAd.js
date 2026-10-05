@@ -32,7 +32,7 @@ export default function StickyFooterAd() {
       token.current = got.token || null;
       setUnit(got);
       trackSession('AD_EXPOSED', { slot: 'sticky-footer', unit: got.idx, reason: 'ok' });
-    }, 20000);
+    }, 8000);
     return () => clearTimeout(t);
   }, []);
 

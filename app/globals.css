@@ -192,6 +192,29 @@ a { color: inherit; text-decoration: none; }
 .video-link { display: block; overflow: visible; position: relative; background-color: #000; cursor: pointer; }
 .video-link .thumbnail { object-fit: contain; object-position: center; }
 .video-link::after { content: ""; position: absolute; top: 50%; left: 50%; border-radius: 50%; transform: translate(-50%, -50%); background: #fe6081; width: 48px; height: 48px; background-image: url(data:image/svg+xml;base64,PHN2ZyAgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiAgd2lkdGg9IjI0IiAgaGVpZ2h0PSIyNCIgIHZpZXdCb3g9IjAgMCAyNCAyNCIgIGZpbGw9IiNmZmYiICBjbGFzcz0iaWNvbiBpY29uLXRhYmxlciBpY29ucy10YWJsZXItZmlsbGVkIGljb24tdGFibGVyLXBsYXllci1wbGF5Ij48cGF0aCBzdHJva2U9Im5vbmUiIGQ9Ik0wIDBoMjR2MjRIMHoiIGZpbGw9Im5vbmUiLz48cGF0aCBkPSJNNiA0djE2YTEgMSAwIDAgMCAxLjUyNCAuODUybDEzIC04YTEgMSAwIDAgMCAwIC0xLjcwNGwtMTMgLThhMSAxIDAgMCAwIC0xLjUyNCAuODUyeiIgLz48L3N2Zz4=); background-position: center; background-repeat: no-repeat; background-size: 24px; filter: drop-shadow(0 0 10px rgba(0,0,0,.4)); }
+/* Saat .video-link.ad-shown: sembunyikan ::after (tombol play default) */
+.video-link.ad-shown::after { display: none; }
+/* Overlay "tap lagi untuk play" setelah iklan dibuka */
+.play-ad-overlay {
+  position: absolute; inset: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.play-ad-box {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  background: rgba(10, 10, 15, 0.88);
+  border: 1.5px solid rgba(254, 96, 129, 0.6);
+  border-radius: 18px; padding: 28px 36px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.play-ad-icon { color: #fe6081; display: flex; }
+.play-ad-icon svg { filter: drop-shadow(0 0 10px rgba(254, 96, 129, 0.7)); }
+.play-ad-msg {
+  color: #fff; font-size: 15px; font-weight: 600; text-align: center;
+  margin: 0; letter-spacing: 0.02em; text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+}
 #videq_iframe { border: none; margin-bottom: -3%; background: #000; }
 @media (min-width: 1024px) {
   .video-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
@@ -300,3 +323,153 @@ a { color: inherit; text-decoration: none; }
 .login-input { margin-bottom: 12px; text-align: center; }
 .login-btn { width: 100%; }
 .login-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ═══════════════════════════════════════════════════════════════
+   /pantau — Analytics Dashboard
+   ═══════════════════════════════════════════════════════════════ */
+.pc-login {
+  min-height: 100dvh; display: flex; align-items: center; justify-content: center;
+  background: #0a0b0f; padding: 20px;
+}
+.pc-login-card {
+  background: #12141c; border: 1px solid #1f2130; border-radius: 18px;
+  padding: 40px 36px; width: 100%; max-width: 380px; text-align: center;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+}
+.pc-login-icon { font-size: 48px; margin-bottom: 12px; }
+.pc-login-title { font-size: 22px; font-weight: 700; margin: 0 0 6px; color: #f1f5f9; }
+.pc-login-sub { font-size: 13px; color: #6b7280; margin: 0 0 20px; }
+.pc-login-error { color: #ef4444; font-size: 12px; margin-bottom: 12px; }
+.pc-login-input { width: 100%; margin-bottom: 12px; }
+.pc-login-btn { width: 100%; }
+
+/* Shell */
+.pc-shell {
+  max-width: 1280px; margin: 0 auto; padding: 16px;
+  background: #0a0b0f; min-height: 100dvh; color: #e2e8f0;
+}
+
+/* Header */
+.pc-header {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+  background: #12141c; border: 1px solid #1f2130; border-radius: 16px;
+  padding: 14px 20px; margin-bottom: 14px;
+}
+.pc-header-left { display: flex; align-items: center; gap: 12px; }
+.pc-header-icon { font-size: 28px; }
+.pc-header-title { font-size: 18px; font-weight: 700; color: #f1f5f9; }
+.pc-header-sub { font-size: 11px; color: #6b7280; margin-top: 2px; }
+.pc-header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* Realtime badge */
+.pc-rt-badge {
+  display: flex; align-items: center; gap: 7px;
+  background: #0f2417; border: 1px solid #166534; border-radius: 999px;
+  padding: 6px 14px;
+}
+.pc-rt-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #22c55e;
+  animation: pc-pulse 1.5s ease-in-out infinite;
+}
+@keyframes pc-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}
+.pc-rt-num { font-size: 18px; font-weight: 700; color: #22c55e; }
+.pc-rt-lbl { font-size: 11px; color: #86efac; }
+
+/* Range bar */
+.pc-range-bar {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.pc-range-btn {
+  background: #12141c; border: 1px solid #1f2130; border-radius: 8px;
+  color: #9ca3af; font-size: 12px; padding: 6px 14px; cursor: pointer;
+  transition: all .15s;
+}
+.pc-range-btn:hover { border-color: #3b82f6; color: #93c5fd; }
+.pc-range-btn.active {
+  background: #1d2d50; border-color: #3b82f6; color: #93c5fd; font-weight: 600;
+}
+
+/* Error */
+.pc-error {
+  background: #2d1515; border: 1px solid #7f1d1d; color: #fca5a5;
+  border-radius: 10px; padding: 10px 16px; font-size: 13px; margin-bottom: 14px;
+}
+
+/* Stats grid */
+.pc-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px; margin-bottom: 14px;
+}
+.pc-stat-card {
+  background: #12141c; border: 1px solid #1f2130; border-radius: 14px;
+  padding: 16px 18px;
+}
+.pc-stat-val {
+  font-size: 28px; font-weight: 800; color: #f1f5f9;
+  line-height: 1.1; margin-bottom: 4px;
+}
+.pc-stat-peak { font-size: 20px; color: #fbbf24; }
+.pc-stat-lbl { font-size: 11px; color: #6b7280; }
+
+/* Cards */
+.pc-card {
+  background: #12141c; border: 1px solid #1f2130; border-radius: 14px;
+  padding: 16px 18px; margin-bottom: 14px; overflow: hidden;
+}
+.pc-card-title {
+  font-size: 13px; font-weight: 600; color: #9ca3af;
+  margin-bottom: 12px; letter-spacing: 0.03em;
+}
+.pc-loading { color: #6b7280; font-size: 13px; padding: 20px 0; text-align: center; }
+.pc-empty { color: #4b5563; font-size: 12px; padding: 16px 0; text-align: center; }
+
+/* Two-col layout */
+.pc-two-col {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;
+}
+@media (max-width: 768px) {
+  .pc-two-col { grid-template-columns: 1fr; }
+}
+
+/* Tables */
+.pc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.pc-table thead tr { border-bottom: 1px solid #1f2130; }
+.pc-table th { color: #6b7280; font-weight: 500; padding: 6px 8px; text-align: left; font-size: 11px; }
+.pc-table td { padding: 7px 8px; border-bottom: 1px solid #1a1c26; color: #d1d5db; }
+.pc-table tr:last-child td { border-bottom: none; }
+.pc-table tr:hover td { background: #16182200; }
+.pc-td-path { font-family: monospace; font-size: 11px; color: #93c5fd; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-td-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: #f1f5f9; }
+.pc-rank { color: #6b7280; font-size: 10px; margin-right: 4px; }
+
+/* Hourly bar */
+.pc-hourly {
+  display: flex; align-items: flex-end; gap: 2px; height: 100px;
+  padding: 8px 0 0;
+}
+.pc-hour-col {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px;
+  cursor: default;
+}
+.pc-hour-bar { width: 100%; max-width: 18px; border-radius: 3px 3px 0 0; min-height: 4px; transition: opacity .2s; }
+.pc-hour-col:hover .pc-hour-bar { opacity: 0.75; }
+.pc-hour-lbl { font-size: 8px; color: #4b5563; }
+
+/* Device chart */
+.pc-device-list { display: flex; flex-direction: column; gap: 10px; }
+.pc-device-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.pc-device-row > span:first-child { min-width: 90px; color: #d1d5db; }
+.pc-device-bar-wrap { flex: 1; background: #1f2130; border-radius: 4px; height: 8px; overflow: hidden; }
+.pc-device-bar { height: 100%; border-radius: 4px; transition: width .4s ease; min-width: 4px; }
+.pc-device-pct { min-width: 40px; text-align: right; font-size: 12px; color: #9ca3af; }
+.pc-device-cnt { min-width: 55px; text-align: right; font-size: 12px; color: #6b7280; }
+
+/* Footer */
+.pc-footer {
+  text-align: center; font-size: 11px; color: #374151; padding: 20px 0 10px;
+}

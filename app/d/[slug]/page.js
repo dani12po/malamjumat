@@ -9,6 +9,7 @@ import VideoPlayer from './player';
 import VideoThumb from '@/app/f/[slug]/thumb';
 import { PreVideoAd, UnderPlayerAd, PostVideoAd, MidContentAd, NativeAd, SidebarAd, BottomAd, MobileAd } from '@/app/ad-slots';
 import SmartCTA from '@/app/SmartCTA';
+import VideoCardLink from '@/app/VideoCardLink';
 
 export async function generateMetadata({ params }) {
   const db = await readDB();
@@ -29,7 +30,10 @@ export default async function VideoPage({ params }) {
   const { bodyHtml } = splitAdScripts(settings);
   // Alokasi prioritas + device adaptif (satu unit maks 1 slot per halaman).
   const U = allocateUnits(bodyHtml, 'video', detectDevice(headers().get('user-agent')));
-  const feedEvery = Math.min(20, Math.max(2, Number(settings.feedEvery) || 6));
+  const backlinks = Array.isArray(settings?.backlinks) && settings.backlinks.length > 0
+    ? settings.backlinks.filter(Boolean)
+    : settings?.directLink ? [settings.directLink] : [];
+  const feedEvery = Math.min(20, Math.max(2, Number(settings.feedEvery) || 4));
   const folder = db.folders.find((f) => f.id === video.folderId) || null;
   const related = db.videos.filter((v) => v.folderId === video.folderId && v.id !== video.id).slice(0, 8);
 
@@ -38,12 +42,11 @@ export default async function VideoPage({ params }) {
         <h1 className="video-title">{video.title}</h1>
         <PreVideoAd slot="pre-1" />
         <PreVideoAd slot="pre-2" />
+        <PreVideoAd slot="pre-3" />
         <div className={`video-layout${U.left ? ' has-left' : ''}`}>
-          {U.left ? (
-            <aside className="video-side video-side-left">
-              <SidebarAd slot="side-left" />
-            </aside>
-          ) : null}
+          <aside className="video-side video-side-left">
+            <SidebarAd slot="side-left" />
+          </aside>
           <div className="video-main">
             <VideoPlayer video={video} settings={settings} />
             <SmartCTA settings={settings}>Tonton di Sponsor</SmartCTA>
@@ -57,6 +60,7 @@ export default async function VideoPage({ params }) {
               </div>
             </section>
             <MidContentAd slot="desc" />
+            <MidContentAd slot="desc-2" trigger="load" />
             {related.length > 0 ? (
               <section>
                 <div className="section-title" style={{ margin: '20px 4px 10px' }}>Video Terkait</div>
@@ -65,7 +69,13 @@ export default async function VideoPage({ params }) {
                   {related.map((v, i) => (
                     <Fragment key={v.id}>
                     <article className="drive-file-card">
-                      <Link href={`/d/${v.id}`} className="thumb-link" aria-label={v.title}>
+                      <VideoCardLink
+                        href={`/d/${v.id}`}
+                        videoId={v.id}
+                        backlinks={backlinks}
+                        className="thumb-link"
+                        ariaLabel={v.title}
+                      >
                         <VideoThumb src={v.thumb} alt={v.label || 'vidoycdn'} />
                         <span className="thumb-label">{v.label || ''}</span>
                         <span className="play-badge" aria-hidden="true">
@@ -73,7 +83,7 @@ export default async function VideoPage({ params }) {
                             <path d="M8 5v14l11-7z"></path>
                           </svg>
                         </span>
-                      </Link>
+                      </VideoCardLink>
                       <Link href={`/d/${v.id}`} className="file-name" title={v.title}>
                         {v.title}
                       </Link>
@@ -88,18 +98,18 @@ export default async function VideoPage({ params }) {
                 </div>
               </section>
             ) : null}
-            <NativeAd slot="related-bottom" trigger="video:progress:50" />
+            <NativeAd slot="related-bottom" trigger="video:progress:25" />
           </div>
-          {U.sidebar ? (
-            <aside className="video-side">
-              <SidebarAd slot="side-right" />
-            </aside>
-          ) : null}
+          <aside className="video-side">
+            <SidebarAd slot="side-right" />
+          </aside>
         </div>
         <BottomAd slot="bottom-1" />
         <SmartCTA settings={settings}>Lihat Penawaran Sponsor</SmartCTA>
-        <BottomAd slot="bottom-2" trigger="video:complete" />
+        <BottomAd slot="bottom-2" trigger="scroll:15" />
+        <BottomAd slot="bottom-3" trigger="load" />
         <MobileAd slot="mobile-inline" />
+        <MobileAd slot="mobile-bottom" trigger="load" />
       </div>
   );
 }

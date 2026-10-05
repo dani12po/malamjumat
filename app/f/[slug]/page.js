@@ -8,6 +8,7 @@ import { allocateUnits, detectDevice } from '@/lib/ad-placement';
 import { TopAd, NativeAd, BottomAd, MobileAd } from '@/app/ad-slots';
 import SmartCTA from '@/app/SmartCTA';
 import VideoThumb from './thumb';
+import VideoCardLink from '@/app/VideoCardLink';
 
 export async function generateMetadata({ params }) {
   const db = await readDB();
@@ -40,6 +41,10 @@ export default async function FolderPage({ params, searchParams }) {
   const totalPages = Math.max(1, Math.ceil(allVideos.length / perPage));
   const safePage = Math.min(page, totalPages);
   const videos = allVideos.slice((safePage - 1) * perPage, safePage * perPage);
+
+  const backlinks = Array.isArray(settings?.backlinks) && settings.backlinks.length > 0
+    ? settings.backlinks.filter(Boolean)
+    : settings?.directLink ? [settings.directLink] : [];
 
   const pageNumbers = [];
   for (let i = 1; i <= totalPages; i++) {
@@ -90,7 +95,13 @@ export default async function FolderPage({ params, searchParams }) {
             return (
               <Fragment key={v.id}>
                 <article className="drive-file-card">
-                  <Link href={`/d/${v.id}`} className="thumb-link" aria-label={v.title}>
+                  <VideoCardLink
+                    href={`/d/${v.id}`}
+                    videoId={v.id}
+                    backlinks={backlinks}
+                    className="thumb-link"
+                    ariaLabel={v.title}
+                  >
                     <VideoThumb src={v.thumb} alt={v.label || 'vidoycdn'} />
                     <span className="thumb-label">{v.label || ''}</span>
                     <span className="play-badge" aria-hidden="true">
@@ -98,7 +109,7 @@ export default async function FolderPage({ params, searchParams }) {
                         <path d="M8 5v14l11-7z"></path>
                       </svg>
                     </span>
-                  </Link>
+                  </VideoCardLink>
                   <Link href={`/d/${v.id}`} className="file-name" title={v.title}>
                     {v.title}
                   </Link>

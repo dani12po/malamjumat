@@ -289,7 +289,12 @@ export default function AdminPage() {
             );
           })()}
           <h2 style={{ marginTop: 20 }}>Kode Script Iklan — jalan otomatis di semua page</h2>
-          <p className="admin-small">Tempel tag <b>&lt;script&gt;</b> utuh dari network (kolom Tipe menebak jenisnya). Banner dipakai berurutan: pre-video → post → deskripsi → terkait → sidebar. Tiap kode tampil maks 1x per halaman; slot tanpa unit tidak render.</p>
+          <p className="admin-small">
+            Tempel kode dari Adsterra — semua format didukung:<br />
+            • <b>Banner</b> (punya <code>atOptions</code> / <code>invoke.js</code>): ditempel di slot banner (pre-video, sidebar, dll)<br />
+            • <b>Popunder / Social Bar / In-Page Push / Native</b> (script src-only): di-load otomatis, Adsterra yang tampilkan iklan-nya sendiri<br />
+            Bisa tempel tag <code>&lt;script&gt;</code> utuh, URL <code>https://...</code>, atau URL protocol-relative <code>//...</code>
+          </p>
           {(() => {
             const adScripts = Array.isArray(settingsForm.adScripts)
               ? settingsForm.adScripts
@@ -297,8 +302,12 @@ export default function AdminPage() {
             function normalizeScript(input) {
               const t = (input || '').trim();
               if (!t) return '';
+              // Sudah tag <script> lengkap
               if (/<script[\s>]/i.test(t)) return t;
-              if (/^https?:\/\/\S+$/i.test(t)) return `<script src="${t}"></script>`;
+              // URL https:// atau http://
+              if (/^https?:\/\/\S+$/i.test(t)) return `<script src="${t}" data-cfasync="false"></script>`;
+              // Protocol-relative URL (format Adsterra Social Bar / In-Page Push)
+              if (/^\/\/\S+$/i.test(t)) return `<script src="${t}" data-cfasync="false"></script>`;
               return '';
             }
             function addAdScript() {
@@ -315,24 +324,44 @@ export default function AdminPage() {
             return (
               <>
                 <div className="admin-row two" style={{ marginTop: 10 }}>
-                  <input className="admin-input" style={{ fontFamily: 'monospace', fontSize: 12 }} value={newAdScript} onChange={(e) => setNewAdScript(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addAdScript(); }} placeholder='<script src="https://cheflobesofficer.com/...js"></script>' />
+                  <input className="admin-input" style={{ fontFamily: 'monospace', fontSize: 12 }} value={newAdScript} onChange={(e) => setNewAdScript(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addAdScript(); }} placeholder='<script src="//..."> atau https://... atau tag lengkap dari Adsterra' />
                   <button className="admin-btn" onClick={addAdScript}>+ Tambah Script</button>
                 </div>
                 <div style={{ marginTop: 12, overflowX: 'auto' }}>
                   <table className="admin-table">
                     <thead><tr><th>#</th><th>Kode Script ({adScripts.length})</th><th>Tipe</th><th>Ukuran</th><th>Aksi</th></tr></thead>
                     <tbody>
-                      {adScripts.map((c, i) => (
+                      {adScripts.map((c, i) => {
+                        // Klasifikasi tipe untuk tampilan admin (lebih akurat dari detectUnitType)
+                        function getAdLabel(code) {
+                          const s = String(code || '');
+                          if (/atOptions\s*=/i.test(s) || /invoke\.js/i.test(s) || /id=(["'])container-/i.test(s)) return 'Banner';
+                          if (/social/i.test(s)) return 'Social Bar';
+                          if (/popunder|pop-under/i.test(s)) return 'Popunder';
+                          if (/native/i.test(s)) return 'Native';
+                          // src-only tanpa banner signal → auto-behavior
+                          const scriptRe = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
+                          let m; let hasSrc = false; let hasInline = false;
+                          scriptRe.lastIndex = 0;
+                          while ((m = scriptRe.exec(s)) !== null) {
+                            if (/\bsrc\s*=/i.test(m[1])) hasSrc = true;
+                            if ((m[2] || '').trim()) hasInline = true;
+                          }
+                          if (hasSrc && !hasInline) return 'Auto (Popunder/Social/Push)';
+                          return detectUnitType(s);
+                        }
+                        return (
                         <tr key={i}>
                           <td>{i + 1}</td>
                           <td style={{ maxWidth: 480, overflow: 'hidden', textOverflow: 'ellipsis', wordBreak: 'break-all', fontFamily: 'monospace', fontSize: 12 }}>{c.length > 140 ? c.slice(0, 140) + '…' : c}</td>
-                          <td className="admin-small">{detectUnitType(c)}</td>
+                          <td className="admin-small">{getAdLabel(c)}</td>
                           <td className="admin-small" style={{ fontFamily: 'monospace' }}>{(() => { const m = parseAdUnit(c); return m.width && m.height ? `${m.width}×${m.height}` : '—'; })()}</td>
                           <td style={{ whiteSpace: 'nowrap' }}>
                             <button className="admin-btn danger" onClick={() => confirm('Hapus script ini?') && removeAdScript(i)}>Hapus</button>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                       {adScripts.length === 0 ? <tr><td colSpan="5" className="admin-small">Belum ada script. Tempel kode dari network lalu Tambah.</td></tr> : null}
                     </tbody>
                   </table>

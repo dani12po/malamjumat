@@ -3,16 +3,52 @@ import { useEffect, useRef, useState } from 'react';
 import { trackSession } from '@/lib/ad-session';
 import VideoThumb from '@/app/f/[slug]/thumb';
 
-// Player murni: klik thumbnail langsung play (tanpa gate iklan, tanpa intercept).
-// Hanya memancarkan event tontonan (VIDEO_OPEN/PLAY/PAUSE/RESUME/PROGRESS/COMPLETE)
-// agar sistem iklan bisa me-reveal placement valid. Behavior popunder milik
-// script resmi Adsterra dan tidak disentuh.
+// Player dengan intercept iklan saat klik play.
+// Mekanisme:
+//   - Klik play ke-1 s/d ke-5: buka halaman iklan di tab baru, video BELUM play.
+//     User harus klik play lagi setelah iklan terbuka → kali kedua langsung play.
+//   - Setelah 5x intercept (total klik = 10 dengan klik post-iklan), semua klik
+//     berikutnya langsung play tanpa iklan (batas tercapai).
+//   - Counter disimpan di sessionStorage per video ID (reset tiap buka tab baru).
+//   - Backlink iklan dirotasi acak dari settings.backlinks.
+//   - Bila tidak ada backlink → langsung play seperti biasa.
 
 const MARKS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95];
 const TIME_MARKS = [10, 20, 30, 45, 60, 90, 120, 180];
+const MAX_AD_INTERCEPTS = 4;
+
+function getInterceptCount(videoId) {
+  try {
+    return Number(sessionStorage.getItem(`play-ad-${videoId}`) || '0') || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function incInterceptCount(videoId) {
+  try {
+    const n = getInterceptCount(videoId) + 1;
+    sessionStorage.setItem(`play-ad-${videoId}`, String(n));
+    return n;
+  } catch {
+    return 1;
+  }
+}
+
+function pickBacklink(settings) {
+  const links = Array.isArray(settings?.backlinks) && settings.backlinks.length > 0
+    ? settings.backlinks.filter(Boolean)
+    : settings?.directLink
+      ? [settings.directLink]
+      : [];
+  if (links.length === 0) return null;
+  return links[Math.floor(Math.random() * links.length)];
+}
 
 export default function VideoPlayer({ video, settings }) {
   const [unlocked, setUnlocked] = useState(false);
+  // 'idle' | 'ad-shown' = sudah buka iklan, tunggu klik play ke-2
+  const [adState, setAdState] = useState('idle');
   const vidRef = useRef(null);
   const wrapRef = useRef(null);
   const pausedOnce = useRef(false);
@@ -22,6 +58,15 @@ export default function VideoPlayer({ video, settings }) {
 
   useEffect(() => {
     trackSession('VIDEO_OPEN', { id: video.id });
+  }, [video.id]);
+
+  // Reset state saat pindah video
+  useEffect(() => {
+    setUnlocked(false);
+    setAdState('idle');
+    pausedOnce.current = false;
+    hitMarks.current = {};
+    hitTimes.current = {};
   }, [video.id]);
 
   // VIDEO_VISIBLE: player benar-benar masuk viewport (sekali per video).
@@ -48,12 +93,41 @@ export default function VideoPlayer({ video, settings }) {
   }, [video.id]);
 
   function handleClick() {
-    // Klik Play asli user: cek opportunity resmi (popunder network menangani
-    // sendiri bila mendukung), lalu video jalan normal. Tanpa intercept.
+    // Sudah unlocked → tidak seharusnya terjadi (thumbnail tidak render), tapi safeguard
+    if (unlocked) return;
+
+    const count = getInterceptCount(video.id);
+    const backlink = pickBacklink(settings);
+
+    // Tidak ada backlink atau sudah melebihi batas → langsung play
+    if (!backlink || count >= MAX_AD_INTERCEPTS) {
+      doPlay('direct');
+      return;
+    }
+
+    if (adState === 'idle') {
+      // Klik pertama: buka iklan di tab baru, tampilkan overlay "klik lagi untuk play"
+      incInterceptCount(video.id);
+      // Buka iklan — pakai window.open agar tidak di-block (dipanggil dari click handler)
+      try {
+        window.open(backlink, '_blank', 'noopener');
+      } catch {
+        // Bila di-block popup blocker, tetap lanjut ke state ad-shown
+      }
+      setAdState('ad-shown');
+      trackSession('PRE_PLAY_AD_OPEN', { id: video.id, count: count + 1 });
+    } else {
+      // Klik kedua setelah iklan terbuka → play
+      doPlay('post-ad');
+    }
+  }
+
+  function doPlay(via) {
     setUnlocked(true);
+    setAdState('idle');
     trackSession('VIDEO_START', { id: video.id });
     trackSession('PRE_PLAY_OPPORTUNITY', { id: video.id });
-    trackSession('VIDEO_PLAY', { id: video.id, via: 'unlock' });
+    trackSession('VIDEO_PLAY', { id: video.id, via });
   }
 
   function handlePlay() {
@@ -77,7 +151,6 @@ export default function VideoPlayer({ video, settings }) {
         trackSession('VIDEO_PROGRESS', { id: video.id, percent: m });
       }
     }
-    // Time engine: detik tontonan AKTUAL (bukan timer dinding).
     const sec = Math.floor(el.currentTime || 0);
     for (const t of TIME_MARKS) {
       if (sec >= t && !hitTimes.current[t]) {
@@ -99,8 +172,33 @@ export default function VideoPlayer({ video, settings }) {
     <div className="video-content" ref={wrapRef}>
       <div id="player">
         {!unlocked ? (
-          <div className="video-link" onClick={handleClick} style={{ cursor: 'pointer' }}>
+          <div
+            className={`video-link${adState === 'ad-shown' ? ' ad-shown' : ''}`}
+            onClick={handleClick}
+            style={{ cursor: 'pointer', position: 'relative' }}
+          >
             <VideoThumb src={video.thumb} alt={video.title} className="thumbnail" />
+
+            {adState === 'ad-shown' ? (
+              // Overlay saat iklan sudah dibuka — minta klik lagi untuk play
+              <div className="play-ad-overlay" aria-live="polite">
+                <div className="play-ad-box">
+                  <span className="play-ad-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </span>
+                  <p className="play-ad-msg">Tap lagi untuk putar video</p>
+                </div>
+              </div>
+            ) : (
+              // Tombol play normal
+              <span className="play-badge" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </span>
+            )}
           </div>
         ) : video.embed ? (
           <iframe

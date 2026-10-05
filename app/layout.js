@@ -1,9 +1,9 @@
 import './globals.css';
-import Script from 'next/script';
 import { headers } from 'next/headers';
 import { getSettings } from '@/lib/db';
 import { splitAdScripts, parseAdUnit } from '@/lib/ads';
 import AdProvider from './AdProvider';
+import AdAutoScripts from './AdAutoScripts';
 import AdSessionManager from './AdSessionManager';
 import AdDebugPanel from './AdDebugPanel';
 import StickyFooterAd from './StickyFooterAd';
@@ -20,11 +20,11 @@ export const dynamic = 'force-dynamic';
 
 function adFlags(settings) {
   return {
-    maxAdsPerPage: Number(settings?.maxAdsPerPage ?? 10),
+    maxAdsPerPage: Number(settings?.maxAdsPerPage ?? 20),
     maxAdsPerSession: Number(settings?.maxAdsPerSession ?? 0),
     stickyFooter: settings?.stickyFooter !== false,
     refreshSeconds: Number(settings?.refreshSeconds ?? 0),
-    isolateBanners: settings?.isolateBanners === true
+    isolateBanners: settings?.isolateBanners !== false
   };
 }
 
@@ -35,14 +35,16 @@ export default async function RootLayout({ children }) {
   } catch {
     settings = {};
   }
-  // Script src-only dimuat di <head> sebelum interaktif = tayang cepat.
-  // Unit body + metadata dioper ke pool client (tanpa duplikat antar slot).
-  const { headSrcs, bodyHtml } = splitAdScripts(settings);
+  // autoSrcs = script Adsterra auto-behavior: popunder, social bar, in-page push.
+  // Cukup di-load ke body satu kali — Adsterra otomatis tampilkan overlay/popup.
+  // bodyHtml = banner yang butuh container, dioper ke pool client via AdProvider.
+  const { autoSrcs, autoInlines, bodyHtml } = splitAdScripts(settings);
   const units = bodyHtml.map((html) => ({ html, ...parseAdUnit(html) }));
   const flags = adFlags(settings);
   // /admin steril total dari iklan (cek server-side via middleware).
-  const pageIsAdmin = (headers().get('x-pathname') || '').startsWith('/admin');
-  const showDebug = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_AD_DEBUG === '1';
+  // Panel debug tampil bila ?ads_debug=1 (cek client-side di komponennya).
+  const pathname = headers().get('x-pathname') || '';
+  const pageIsAdmin = pathname.startsWith('/admin') || pathname.startsWith('/pantau');
   return (
     <html lang="id">
       <body>
@@ -50,10 +52,13 @@ export default async function RootLayout({ children }) {
           {children}
           {!pageIsAdmin && <AdSessionManager />}
           {!pageIsAdmin && <StickyFooterAd />}
-          {showDebug && !pageIsAdmin && <AdDebugPanel />}
-          {!pageIsAdmin && headSrcs.map((src) => (
-            <Script key={src} src={src} strategy="beforeInteractive" data-cfasync="false" />
-          ))}
+          {!pageIsAdmin && <AdDebugPanel />}
+          {/* Script auto-behavior Adsterra (popunder, social bar, in-page push):
+              di-inject ke body satu kali saat mount. Adsterra yang mengontrol
+              kapan dan bagaimana iklan tampil — tanpa intervensi dari kode ini. */}
+          {!pageIsAdmin && (autoSrcs.length > 0 || autoInlines.length > 0) && (
+            <AdAutoScripts srcs={autoSrcs} inlines={autoInlines} />
+          )}
         </AdProvider>
       </body>
     </html>

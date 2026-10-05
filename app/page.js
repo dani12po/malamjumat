@@ -4,6 +4,7 @@ import { readDB } from '@/lib/db';
 import VideoThumb from '@/app/f/[slug]/thumb';
 import { TopAd, NativeAd, BottomAd, MobileAd } from '@/app/ad-slots';
 import SmartCTA from '@/app/SmartCTA';
+import VideoCardLink from '@/app/VideoCardLink';
 
 export async function generateMetadata() {
   const db = await readDB();
@@ -27,6 +28,10 @@ export default async function Home() {
   const videos = db.videos || [];
   const settings = db.settings || {};
   if (folders.length === 0) redirect('/admin');
+
+  const backlinks = Array.isArray(settings?.backlinks) && settings.backlinks.length > 0
+    ? settings.backlinks.filter(Boolean)
+    : settings?.directLink ? [settings.directLink] : [];
 
   const withVideos = folders
     .map((f) => ({ folder: f, list: videos.filter((v) => v.folderId === f.id) }))
@@ -73,7 +78,13 @@ export default async function Home() {
           <div className="file-grid">
             {g.list.slice(0, 6).map((v) => (
               <article key={v.id} className="drive-file-card">
-                <Link href={`/d/${v.id}`} className="thumb-link" aria-label={v.title}>
+                <VideoCardLink
+                  href={`/d/${v.id}`}
+                  videoId={v.id}
+                  backlinks={backlinks}
+                  className="thumb-link"
+                  ariaLabel={v.title}
+                >
                   <VideoThumb src={v.thumb} alt={v.label || 'vidoycdn'} />
                   <span className="thumb-label">{v.label || ''}</span>
                   <span className="play-badge" aria-hidden="true">
@@ -81,7 +92,7 @@ export default async function Home() {
                       <path d="M8 5v14l11-7z"></path>
                     </svg>
                   </span>
-                </Link>
+                </VideoCardLink>
                 <Link href={`/d/${v.id}`} className="file-name" title={v.title}>
                   {v.title}
                 </Link>
