@@ -18,32 +18,32 @@ function fmtNum(n) {
   return Number(n).toLocaleString('id-ID');
 }
 
-// ─── Komponen Chart Bar (SVG murni, tanpa library) ────────────────────────────
-function BarChart({ data, height = 200 }) {
+// ─── Komponen Chart Stacked Bar (SVG murni, tanpa library) ───────────────────
+// Pageviews (biru) = bagian bawah, Pengunjung (merah) = ditumpuk di atas
+function BarChart({ data, height = 220 }) {
   if (!data || data.length === 0) {
     return <div className="pc-empty">Belum ada data untuk periode ini</div>;
   }
 
-  const maxPV = Math.max(...data.map(d => d.pageviews), 1);
-  const maxV  = Math.max(...data.map(d => d.visitors), 1);
-  const maxVal = Math.max(maxPV, maxV);
+  // Max = total tertinggi (pv + visitors) untuk skala Y
+  const maxTotal = Math.max(...data.map(d => d.pageviews), 1);
 
-  const W = 900; // viewBox width
+  const W = 900;
   const PAD_L = 44;
   const PAD_R = 10;
-  const PAD_T = 14;
+  const PAD_T = 20;
   const PAD_B = 36;
   const chartW = W - PAD_L - PAD_R;
   const chartH = height - PAD_T - PAD_B;
 
   const n = data.length;
   const slotW = chartW / n;
-  const barW = Math.max(4, Math.min(slotW * 0.38, 28));
+  // Bar selebar slot (dengan gap kecil) — bar tunggal per periode
+  const barW = Math.max(3, Math.min(slotW * 0.75, 36));
 
-  // Grid lines: 5 horizontal
   const gridLines = [0, 0.25, 0.5, 0.75, 1].map(f => ({
     y: PAD_T + chartH * (1 - f),
-    label: fmtNum(Math.round(maxVal * f))
+    label: fmtNum(Math.round(maxTotal * f))
   }));
 
   return (
@@ -56,35 +56,57 @@ function BarChart({ data, height = 200 }) {
         </g>
       ))}
 
-      {/* Bars */}
+      {/* Stacked Bars */}
       {data.map((d, i) => {
         const cx = PAD_L + i * slotW + slotW / 2;
-        const hPV = (d.pageviews / maxVal) * chartH;
-        const hV  = (d.visitors  / maxVal) * chartH;
-        const yPV = PAD_T + chartH - hPV;
-        const yV  = PAD_T + chartH - hV;
+        const x = cx - barW / 2;
+        const bottom = PAD_T + chartH; // baseline
+
+        // Pageviews = full bar biru (dari bawah)
+        const hPV = (d.pageviews / maxTotal) * chartH;
+        const yPV = bottom - hPV;
+
+        // Pengunjung = tumpuk di atas pageviews (merah)
+        const hV = (d.visitors / maxTotal) * chartH;
+        const yV = yPV - hV;
+
+        const showLabel = n <= 32 || i % Math.ceil(n / 24) === 0;
+
         return (
           <g key={i}>
-            {/* Pageviews bar (biru) */}
-            <rect x={cx - barW} y={yPV} width={barW} height={hPV}
-              fill="#3b82f6" opacity="0.85" rx="2" />
-            {/* Visitors bar (merah) */}
-            <rect x={cx} y={yV} width={barW} height={hV}
-              fill="#ef4444" opacity="0.85" rx="2" />
-            {/* Label periode */}
-            {(n <= 32 || i % Math.ceil(n / 20) === 0) && (
-              <text x={cx} y={PAD_T + chartH + 14} textAnchor="middle"
-                fontSize={n > 20 ? '7' : '9'} fill="#9ca3af">{d.period}</text>
+            {/* Pageviews (biru) — bawah */}
+            {hPV > 0 && (
+              <rect x={x} y={yPV} width={barW} height={hPV}
+                fill="#3b82f6" opacity="0.9" rx="2"
+              >
+                <title>{d.period}: {d.pageviews} pageviews</title>
+              </rect>
+            )}
+            {/* Pengunjung (merah) — tumpuk atas */}
+            {hV > 0 && (
+              <rect x={x} y={yV} width={barW} height={hV}
+                fill="#ef4444" opacity="0.9"
+                rx={hPV > 0 ? "0" : "2"}
+              >
+                <title>{d.period}: {d.visitors} pengunjung</title>
+              </rect>
+            )}
+            {/* Label X */}
+            {showLabel && (
+              <text x={cx} y={bottom + 14} textAnchor="middle"
+                fontSize={n > 20 ? '7' : '9'} fill="#9ca3af">
+                {d.period}
+              </text>
             )}
           </g>
         );
       })}
 
-      {/* Legend */}
-      <rect x={PAD_L} y={4} width={10} height={8} fill="#ef4444" rx="1" />
-      <text x={PAD_L + 13} y={11} fontSize="9" fill="#d1d5db">Pengunjung</text>
-      <rect x={PAD_L + 90} y={4} width={10} height={8} fill="#3b82f6" rx="1" />
-      <text x={PAD_L + 103} y={11} fontSize="9" fill="#d1d5db">Pageviews</text>
+      {/* Legend — kiri atas */}
+      <rect x={PAD_L} y={5} width={10} height={8} fill="#3b82f6" rx="1" />
+      <text x={PAD_L + 13} y={12} fontSize="9" fill="#d1d5db">Pageviews (bawah)</text>
+      <rect x={PAD_L + 120} y={5} width={10} height={8} fill="#ef4444" rx="1" />
+      <text x={PAD_L + 133} y={12} fontSize="9" fill="#d1d5db">Pengunjung unik (atas)</text>
     </svg>
   );
 }
