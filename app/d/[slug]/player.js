@@ -85,8 +85,9 @@ function pickBacklink(settings) {
 
 export default function VideoPlayer({ video, settings }) {
   const [unlocked, setUnlocked] = useState(false);
-  // 'idle' | 'ad-shown' = sudah buka iklan, tunggu klik play ke-2
   const [adState, setAdState] = useState('idle');
+  // Thumbnail otomatis dari frame video (kalau thumb kosong)
+  const [autoThumb, setAutoThumb] = useState(null);
   const vidRef = useRef(null);
   const wrapRef = useRef(null);
   const pausedOnce = useRef(false);
@@ -97,6 +98,55 @@ export default function VideoPlayer({ video, settings }) {
   useEffect(() => {
     trackSession('VIDEO_OPEN', { id: video.id });
   }, [video.id]);
+
+  // Generate thumbnail otomatis dari frame pertama video (bila thumb kosong)
+  useEffect(() => {
+    setAutoThumb(null);
+    const srcUrl = video.embed || video.file || '';
+    if (video.thumb || !srcUrl || !isDirectVideoUrl(srcUrl)) return;
+    let cancelled = false;
+    const vid = document.createElement('video');
+    vid.crossOrigin = 'anonymous';
+    vid.muted = true;
+    vid.playsInline = true;
+    vid.preload = 'metadata';
+    // Pakai proxy agar tidak kena CORS saat capture canvas
+    vid.src = proxyVideoUrl(srcUrl);
+    vid.currentTime = 1; // seek ke detik 1 untuk dapat frame yang ada isinya
+
+    const capture = () => {
+      if (cancelled) return;
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = vid.videoWidth || 360;
+        canvas.height = vid.videoHeight || 640;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        if (!cancelled && dataUrl && dataUrl !== 'data:,') {
+          setAutoThumb(dataUrl);
+        }
+      } catch {
+        // Canvas tainted (CORS) — abaikan, tetap tampil tanpa thumbnail
+      }
+      vid.src = '';
+    };
+
+    vid.addEventListener('seeked', capture, { once: true });
+    vid.addEventListener('loadedmetadata', () => {
+      vid.currentTime = 1;
+    }, { once: true });
+    vid.addEventListener('error', () => { vid.src = ''; }, { once: true });
+
+    // Timeout fallback: kalau 8 detik belum dapat frame, give up
+    const t = setTimeout(() => { cancelled = true; vid.src = ''; }, 8000);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+      vid.src = '';
+    };
+  }, [video.id, video.thumb, video.embed, video.file]);
 
   // Reset state saat pindah video
   useEffect(() => {
@@ -215,7 +265,7 @@ export default function VideoPlayer({ video, settings }) {
             onClick={handleClick}
             style={{ cursor: 'pointer', position: 'relative' }}
           >
-            <VideoThumb src={video.thumb} alt={video.title} className="thumbnail" />
+            <VideoThumb src={video.thumb || autoThumb || ''} alt={video.title} className="thumbnail" />
 
             {adState === 'ad-shown' ? (
               // Overlay saat iklan sudah dibuka — minta klik lagi untuk play
