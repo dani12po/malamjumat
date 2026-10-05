@@ -24,7 +24,9 @@ function adFlags(settings) {
     maxAdsPerSession: Number(settings?.maxAdsPerSession ?? 0),
     stickyFooter: settings?.stickyFooter !== false,
     refreshSeconds: Number(settings?.refreshSeconds ?? 0),
-    isolateBanners: settings?.isolateBanners !== false
+    // Default FALSE — Adsterra banner tidak kompatibel dengan iframe sandbox.
+    // Aktifkan hanya bila ada konflik container ID antar unit (jarang terjadi).
+    isolateBanners: settings?.isolateBanners === true
   };
 }
 

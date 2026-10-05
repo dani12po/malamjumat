@@ -276,7 +276,7 @@ export default function AdBox({
     <div ref={boxRef} className={`adbox ${className}${showLabel ? '' : ' adbox-idle'}`} data-adstate={adState} data-adslot={slotName} data-adreason={reason}>
       {showLabel || iso ? <span className="adbox-label">Advertisement</span> : null}
       {iso ? (
-        <iframe title={`ad-${slotName}`} srcDoc={iso.srcDoc} width={iso.width} height={iso.height} sandbox="allow-scripts allow-popups" loading="lazy" style={{ border: 0, maxWidth: '100%' }} />
+        <iframe title={`ad-${slotName}`} srcDoc={iso.srcDoc} width={iso.width} height={iso.height} sandbox="allow-scripts allow-popups allow-same-origin" loading="lazy" style={{ border: 0, maxWidth: '100%' }} />
       ) : (
         <div ref={bodyRef} className="adbox-body" style={showMinH} />
       )}
