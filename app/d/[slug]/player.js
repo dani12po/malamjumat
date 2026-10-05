@@ -35,6 +35,44 @@ function incInterceptCount(videoId) {
   }
 }
 
+// Deteksi apakah URL adalah video langsung (MP4, dll) bukan iframe embed
+function isDirectVideoUrl(url) {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    const path = u.pathname.toLowerCase();
+    // Ekstensi video umum
+    if (/\.(mp4|webm|ogg|mov|m4v|mkv|avi|flv|wmv|3gp)(\?|$)/i.test(path)) return true;
+    // Domain CDN video terkenal yang serve MP4 langsung
+    if (/video\.twimg\.com|twimg\.com\/amplify_video/i.test(u.hostname + u.pathname)) return true;
+    if (/\/(vid|video|amplify_video)\//i.test(u.pathname)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// Bungkus URL video dengan proxy bila domain-nya kemungkinan blokir CORS/Referer
+function proxyVideoUrl(url) {
+  if (!url) return url;
+  try {
+    const u = new URL(url);
+    // Domain yang diketahui blokir embed langsung
+    const needsProxy = [
+      'video.twimg.com', 'pbs.twimg.com', 'twimg.com',
+      'scontent.cdninstagram.com', 'instagram.com',
+      'fbcdn.net', 'facebook.com',
+      'tiktokcdn.com', 'tiktok.com'
+    ].some(d => u.hostname.endsWith(d));
+    if (needsProxy) {
+      return `/api/video?u=${encodeURIComponent(url)}`;
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
+
 function pickBacklink(settings) {
   const links = Array.isArray(settings?.backlinks) && settings.backlinks.length > 0
     ? settings.backlinks.filter(Boolean)
@@ -200,24 +238,26 @@ export default function VideoPlayer({ video, settings }) {
               </span>
             )}
           </div>
-        ) : video.embed ? (
+        ) : video.embed && !isDirectVideoUrl(video.embed) ? (
+          // Embed iframe — untuk YouTube, Doodstream, dll
           <iframe
             id="videq_iframe"
             scrolling="no"
             frameBorder="0"
             allowFullScreen
-            allow="fullscreen"
+            allow="fullscreen; autoplay"
             src={video.embed}
             onLoad={handleReady}
           />
         ) : (
+          // Video langsung (MP4 dari field file ATAU field embed yang berisi URL video)
           <video
             id="videq_iframe"
             ref={vidRef}
             controls
             autoPlay
             playsInline
-            src={video.file || ''}
+            src={proxyVideoUrl(video.embed || video.file || '')}
             poster={video.thumb}
             onPlay={handlePlay}
             onPause={handlePause}
