@@ -2,7 +2,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 
 // ─── Konstanta ─────────────────────────────────────────────────────────────────
-const REFRESH_SEC = 30; // auto-refresh data setiap 30 detik
+const REFRESH_SEC = 5;    // realtime (online sekarang) refresh tiap 5 detik
+const STATS_SEC   = 30;   // chart + stats lengkap refresh tiap 30 detik
 
 const COUNTRY_FLAG = (cc) => {
   if (!cc || cc === '—' || cc.length !== 2) return '🌐';
@@ -180,6 +181,7 @@ export default function PantauPage() {
   const [error, setError]       = useState('');
   const [countdown, setCountdown] = useState(REFRESH_SEC);
   const timerRef = useRef(null);
+  const statsTimerRef = useRef(null);
   const savedPass = useRef('');
 
   // Coba auto-login dari localStorage
@@ -187,6 +189,18 @@ export default function PantauPage() {
     const saved = localStorage.getItem('pantau-pass');
     if (saved) { savedPass.current = saved; setPass(saved); doFetch(saved, range); }
     // eslint-disable-next-line
+  }, []);
+
+  // Fetch realtime saja (5 detik) — query ringan
+  const doFetchRealtime = useCallback(async (p) => {
+    try {
+      const res = await fetch('/api/pantau?mode=realtime', {
+        headers: { 'x-admin-pass': p }
+      });
+      if (!res.ok) return;
+      const rt = await res.json();
+      setData(prev => prev ? { ...prev, realtime: rt } : prev);
+    } catch { /* abaikan */ }
   }, []);
 
   const doFetch = useCallback(async (p, r) => {
@@ -209,20 +223,33 @@ export default function PantauPage() {
     }
   }, []);
 
-  // Auto-refresh countdown
+  // Timer 1: realtime setiap 5 detik
   useEffect(() => {
     if (!authed) return;
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
-      setCountdown(c => {
-        if (c <= 1) {
-          doFetch(savedPass.current, range);
-          return REFRESH_SEC;
-        }
-        return c - 1;
-      });
-    }, 1000);
+      doFetchRealtime(savedPass.current);
+      setCountdown(c => Math.max(0, c - 5));
+    }, REFRESH_SEC * 1000);
     return () => clearInterval(timerRef.current);
+  }, [authed, doFetchRealtime]);
+
+  // Timer 2: stats penuh setiap 30 detik + countdown display
+  useEffect(() => {
+    if (!authed) return;
+    if (statsTimerRef.current) clearInterval(statsTimerRef.current);
+    statsTimerRef.current = setInterval(() => {
+      doFetch(savedPass.current, range);
+      setCountdown(STATS_SEC);
+    }, STATS_SEC * 1000);
+    // Countdown tick setiap detik
+    const tick = setInterval(() => {
+      setCountdown(c => (c <= 1 ? STATS_SEC : c - 1));
+    }, 1000);
+    return () => {
+      clearInterval(statsTimerRef.current);
+      clearInterval(tick);
+    };
   }, [authed, range, doFetch]);
 
   function handleLogin() {
@@ -275,7 +302,7 @@ export default function PantauPage() {
           <span className="pc-header-icon">📊</span>
           <div>
             <div className="pc-header-title">Monitor Pengunjung</div>
-            <div className="pc-header-sub">Auto-refresh dalam {countdown}s</div>
+            <div className="pc-header-sub">Realtime: tiap 5s • Stats: tiap {countdown}s</div>
           </div>
         </div>
         <div className="pc-header-right">
